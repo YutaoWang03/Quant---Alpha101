@@ -8,6 +8,8 @@
 
 - `data_api.py` - 统一数据接口，支持多种数据源
 - `baostock_loader.py` - Baostock 数据源实现
+- `download_historical_data.py` - 历史数据下载脚本 ⭐
+- `query_database.py` - 数据库查询工具 ⭐
 - `joinquant_loader.py` - 聚宽数据源实现（待实现）
 - `data_cleaner.py` - 数据清洗模块（待实现）
 - `data_cache.py` - 数据缓存管理（待实现）
@@ -16,18 +18,40 @@
 
 ```
 data/
-├── __init__.py              # 模块初始化
-├── README.md                # 本文档
-├── data_api.py              # 统一数据接口 ✅
-├── baostock_loader.py       # Baostock数据源 ✅
-├── joinquant_loader.py      # 聚宽数据源 🚧
-├── data_cleaner.py          # 数据清洗 🚧
-├── data_cache.py            # 缓存管理 🚧
-└── db/                      # 本地数据存储
-    └── README.md            # 存储说明
+├── __init__.py                      # 模块初始化
+├── README.md                        # 本文档
+├── data_api.py                      # 统一数据接口 ✅
+├── baostock_loader.py               # Baostock数据源 ✅
+├── download_historical_data.py      # 历史数据下载 ✅
+├── query_database.py                # 数据库查询 ✅
+├── joinquant_loader.py              # 聚宽数据源 🚧
+├── data_cleaner.py                  # 数据清洗 🚧
+├── data_cache.py                    # 缓存管理 🚧
+└── db/                              # 本地数据存储
+    ├── README.md                    # 存储说明
+    └── stock_data.db                # SQLite数据库（自动生成）
 ```
 
 ## 快速开始
+
+### 0. 下载历史数据到本地数据库
+
+首次使用前，运行数据下载脚本：
+
+```bash
+# 下载指定股票和指数的历史数据
+python data/download_historical_data.py
+```
+
+这将下载以下数据到 `data/db/stock_data.db`：
+- 沪深300指数
+- 创业板指数
+- 中证500指数
+- 中证1000指数
+- 江苏银行
+- 工商银行
+- 农业银行
+- 建设银行
 
 ### 1. 使用统一接口
 
@@ -70,6 +94,23 @@ with BaostockLoader() as loader:
         start_date='2023-01-01',
         end_date='2024-01-01'
     )
+```
+
+### 3. 查询本地数据库
+
+```python
+from data import StockDatabase
+
+with StockDatabase() as db:
+    # 打印数据库摘要
+    db.print_summary()
+    
+    # 获取单只股票数据
+    icbc_data = db.get_stock_data('sh.601398', start_date='2023-01-01')
+    
+    # 获取面板数据
+    banks = ['sh.601398', 'sh.601288', 'sh.601939', 'sh.600919']
+    panel = db.get_panel_data(banks, field='close')
 ```
 
 ## 数据源支持
