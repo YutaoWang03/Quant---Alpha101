@@ -169,7 +169,7 @@ class Alpha001Strategy:
 
     def plot(self, benchmark_returns=None):
         """绘制回测结果"""
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
 
         ax1.plot(self.results['date'], self.results['cumulative_return'],
                  label='Alpha #1 策略', linewidth=2, color='red')
@@ -199,8 +199,8 @@ def main():
     print("Alpha #1 因子测试（baostock 实时数据 + core/ 计算模块）")
     print("=" * 60)
 
-    START_DATE = '2023-01-01'
-    END_DATE   = '2024-01-01'
+    START_DATE = '2025-01-01'
+    END_DATE   = '2026-01-01'
     MAX_STOCKS = 30
     TOP_N      = 10
     REBALANCE  = 5
