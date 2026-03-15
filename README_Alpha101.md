@@ -43,6 +43,11 @@
 from alpha101_functions import *
 ```
 
+### 4. 测试文件
+- `Alpha101 Learning.ipynb` - Jupyter notebook完整教程和测试
+- `jq_alpha001_strategy.py` - 聚宽平台Alpha #1因子策略
+- `alpha001_local_test.py` - 本地测试代码
+
 ## 使用方法
 
 ### 方法1：使用主入口文件（推荐，向后兼容）
@@ -79,6 +84,40 @@ from alpha_helpers import *
 from alpha_factors import *
 ```
 
+## Alpha #1 因子测试
+
+### 本地测试
+```bash
+python alpha001_local_test.py
+```
+
+### 聚宽平台测试
+1. 将 `jq_alpha001_strategy.py` 内容复制到聚宽平台
+2. 运行策略回测
+3. 查看结果和指标
+
+### Jupyter Notebook测试
+打开 `Alpha101 Learning.ipynb`，运行相关单元格
+
+## Alpha #1 因子说明
+
+**因子公式：**
+```
+rank(Ts_ArgMax(SignedPower(((returns < 0) ? stddev(returns, 20) : close), 2.), 5)) - 0.5
+```
+
+**因子逻辑：**
+1. 当收益率为负时，使用20日收益率标准差
+2. 当收益率为正时，使用收益率绝对值
+3. 对上述值进行2次幂运算（保持符号）
+4. 计算5日滚动窗口内的最大值位置
+5. 对结果进行横截面排名并减去0.5
+
+**因子特性：**
+- 类型：短期反转因子
+- 周期：5日
+- 适用：高频交易和短期策略
+
 ## 优势
 
 1. **功能分层**：辅助函数和量化因子分离，职责清晰
@@ -86,6 +125,7 @@ from alpha_factors import *
 3. **便于扩展**：添加新因子只需修改 `alpha_factors.py`
 4. **故障排查**：问题定位更快速准确
 5. **向后兼容**：旧代码无需修改即可使用
+6. **完整测试**：提供多种测试方式和示例
 
 ## 数据要求
 
@@ -109,3 +149,10 @@ from alpha_factors import *
 - 函数功能
 - 参数说明
 - 返回值说明
+
+## 风险提示
+
+1. 因子可能存在时效性，需要定期验证
+2. 建议与其他因子组合使用
+3. 注意控制交易成本和换手率
+4. 测试数据为模拟数据，实际使用需要真实数据
