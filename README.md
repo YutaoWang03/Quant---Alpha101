@@ -74,8 +74,8 @@ Alpha 101 因子涵盖了多种量化交易策略类型：
 
 ```bash
 # 克隆项目
-git clone https://github.com/your-username/Alpha101.git
-cd Alpha101
+git clone https://github.com/YutaoWang03/Quant---Alpha101.git
+cd Quant---Alpha101
 
 # 安装依赖
 pip install -r requirements.txt
@@ -105,18 +105,6 @@ from core.alpha_helpers import get_stock_data
 data = get_stock_data('000001.SZ', '2023-01-01', '2023-12-31')
 alpha001_value = Alpha001(data)
 ```
-
-## 因子类型
-
-Alpha 101 因子涵盖了多种量化交易策略类型：
-
-1. **动量策略**：基于价格趋势的延续性
-2. **均值回归策略**：基于价格回归到均值的假设
-3. **成交量分析**：基于成交量变化与价格关系
-4. **价格模式识别**：基于价格形态和模式
-5. **行业中性化**：去除行业因素的影响
-6. **时间序列分析**：基于历史数据的时间序列模式
-7. **横截面分析**：基于不同资产间的相对表现
 
 ## 开发指南
 
@@ -167,9 +155,8 @@ Alpha 101 因子涵盖了多种量化交易策略类型：
 
 ## 联系方式
 
-- 项目维护者: [Your Name]
-- 邮箱: your.email@example.com
-- 项目主页: https://github.com/your-username/Alpha101
+- 项目维护者: YutaoWang03
+- 项目主页: https://github.com/YutaoWang03/Quant---Alpha101
 
 ---
 
