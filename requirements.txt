@@ -1,0 +1,62 @@
+# Alpha101 项目依赖包
+# Alpha101 Project Dependencies
+
+# 数据处理和科学计算
+# Data Processing and Scientific Computing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# 数据可视化
+# Data Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# 数据获取
+# Data Sources
+baostock>=0.8.8
+
+# 技术指标计算
+# Technical Analysis
+talib>=0.4.0
+
+# 数据库连接（可选）
+# Database Connections (Optional)
+# sqlalchemy>=2.0.0
+# pymysql>=1.0.0
+
+# Jupyter Notebook支持
+# Jupyter Notebook Support
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# 测试框架
+# Testing Framework
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# 代码质量
+# Code Quality
+black>=23.0.0
+flake8>=6.0.0
+
+# 性能分析
+# Performance Analysis
+numba>=0.57.0
+
+# 时间序列分析
+# Time Series Analysis
+statsmodels>=0.14.0
+
+# 机器学习（可选）
+# Machine Learning (Optional)
+# scikit-learn>=1.3.0
+# xgboost>=1.7.0
+
+# 并行计算
+# Parallel Computing
+joblib>=1.3.0
+
+# 配置文件处理
+# Configuration File Processing
+pyyaml>=6.0.0
+configparser>=5.3.0
