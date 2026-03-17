@@ -139,17 +139,17 @@ if __name__ == "__main__":
         stocks = api.get_stock_list()
         print(stocks)
         
-        # 获取单只股票数据
-        print("\n" + "="*60)
-        print("获取工商银行数据")
-        print("="*60)
-        icbc_data = api.get_stock_data('sh.601398', start_date='2023-01-01')
-        print(icbc_data.tail(10))
+        # # 获取单只股票数据
+        # print("\n" + "="*60)
+        # print("获取工商银行数据")
+        # print("="*60)
+        # icbc_data = api.get_stock_data('sh.601398', start_date='2023-01-01')
+        # print(icbc_data.tail(10))
         
-        # 获取面板数据
-        print("\n" + "="*60)
-        print("获取四大行收盘价面板数据")
-        print("="*60)
-        banks = ['sh.601398', 'sh.601288', 'sh.601939', 'sh.600919']
-        panel = api.get_panel_data(banks, field='close')
-        print(panel.tail(5))
+        # # 获取面板数据
+        # print("\n" + "="*60)
+        # print("获取四大行收盘价面板数据")
+        # print("="*60)
+        # banks = ['sh.601398', 'sh.601288', 'sh.601939', 'sh.600919']
+        # panel = api.get_panel_data(banks, field='close')
+        # print(panel.tail(5))
