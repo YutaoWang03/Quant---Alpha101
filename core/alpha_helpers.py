@@ -1,277 +1,171 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Alpha101 辅助函数
-Helper functions for Alpha101 factor calculations
+Helper functions for Alpha101 factors implementation
 """
 
 import pandas as pd
 import numpy as np
-from typing import Union
 
 
-# ============================================================================
-# 时间序列操作函数（Time Series Operations）
-# ============================================================================
-
-def rank(df: pd.DataFrame) -> pd.DataFrame:
+def ts_rank(df: pd.DataFrame, window: int) -> pd.DataFrame:
     """
-    横截面排名（Cross-sectional rank）
+    时间序列排名（Ts_Rank）
+    计算每只股票在过去window天内的时间序列排名
     
     Args:
-        df: 输入数据框
+        df: 输入数据 DataFrame
+        window: 时间窗口
     
     Returns:
-        排名后的数据框，值在[0,1]之间
+        时间序列排名 DataFrame
     """
-    return df.rank(axis=1, pct=True)
+    def rank_last(x):
+        """计算最后一个值在窗口内的排名"""
+        if len(x) < 2:
+            return np.nan
+        return (x.rank(pct=True).iloc[-1])
+    
+    return df.rolling(window=window).apply(rank_last, raw=False)
 
 
-def delay(df: pd.DataFrame, period: Union[int, float]) -> pd.DataFrame:
+def ts_argmax(df: pd.DataFrame, window: int) -> pd.DataFrame:
     """
-    时间序列延迟（Time series delay）
+    时间序列最大值索引（Ts_ArgMax）
+    返回过去window天内最大值出现的位置（从0开始）
     
     Args:
-        df: 输入数据框
-        period: 延迟的周期数
+        df: 输入数据 DataFrame
+        window: 时间窗口
     
     Returns:
-        延迟后的数据框
+        最大值索引 DataFrame
     """
-    return df.shift(int(period))
+    return df.rolling(window=window).apply(lambda x: x.argmax(), raw=True)
 
 
-def delta(df: pd.DataFrame, period: Union[int, float]) -> pd.DataFrame:
+def ts_argmin(df: pd.DataFrame, window: int) -> pd.DataFrame:
     """
-    时间序列差分（Time series delta）
+    时间序列最小值索引（Ts_ArgMin）
+    返回过去window天内最小值出现的位置（从0开始）
     
     Args:
-        df: 输入数据框
-        period: 差分的周期数
+        df: 输入数据 DataFrame
+        window: 时间窗口
     
     Returns:
-        差分后的数据框
+        最小值索引 DataFrame
     """
-    return df.diff(int(period))
+    return df.rolling(window=window).apply(lambda x: x.argmin(), raw=True)
 
 
-def ts_sum(df: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
+def ts_min(df: pd.DataFrame, window: int) -> pd.DataFrame:
     """
-    时间序列求和（Time series sum）
+    时间序列最小值（ts_min）
     
     Args:
-        df: 输入数据框
-        window: 窗口大小
+        df: 输入数据 DataFrame
+        window: 时间窗口
     
     Returns:
-        滚动求和后的数据框
+        滚动最小值 DataFrame
     """
-    return df.rolling(window=int(window)).sum()
+    return df.rolling(window=window).min()
 
 
-def ts_mean(df: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
+def ts_max(df: pd.DataFrame, window: int) -> pd.DataFrame:
     """
-    时间序列均值（Time series mean）
+    时间序列最大值（ts_max）
     
     Args:
-        df: 输入数据框
-        window: 窗口大小
+        df: 输入数据 DataFrame
+        window: 时间窗口
     
     Returns:
-        滚动均值后的数据框
+        滚动最大值 DataFrame
     """
-    return df.rolling(window=int(window)).mean()
+    return df.rolling(window=window).max()
 
 
-def ts_min(df: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
+def delta(df: pd.DataFrame, period: int) -> pd.DataFrame:
     """
-    时间序列最小值（Time series minimum）
+    差分（delta）
+    计算当前值与period天前的差值
     
     Args:
-        df: 输入数据框
-        window: 窗口大小
+        df: 输入数据 DataFrame
+        period: 差分周期
     
     Returns:
-        滚动最小值后的数据框
+        差分结果 DataFrame
     """
-    return df.rolling(window=int(window)).min()
+    return df.diff(period)
 
 
-def ts_max(df: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
+def delay(df: pd.DataFrame, period: int) -> pd.DataFrame:
     """
-    时间序列最大值（Time series maximum）
+    延迟（delay）
+    返回period天前的值
     
     Args:
-        df: 输入数据框
-        window: 窗口大小
+        df: 输入数据 DataFrame
+        period: 延迟周期
     
     Returns:
-        滚动最大值后的数据框
+        延迟结果 DataFrame
     """
-    return df.rolling(window=int(window)).max()
+    return df.shift(period)
 
 
-def ts_argmax(df: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
+def decay_linear(df: pd.DataFrame, window: int) -> pd.DataFrame:
     """
-    时间序列最大值索引（Time series argmax）
+    线性衰减加权移动平均（decay_linear）
+    权重从1到window线性递减
     
     Args:
-        df: 输入数据框
-        window: 窗口大小
+        df: 输入数据 DataFrame
+        window: 时间窗口
     
     Returns:
-        滚动窗口内最大值的索引位置
+        线性衰减加权移动平均 DataFrame
     """
-    return df.rolling(window=int(window)).apply(lambda x: x.argmax(), raw=True)
-
-
-def ts_argmin(df: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
-    """
-    时间序列最小值索引（Time series argmin）
-    
-    Args:
-        df: 输入数据框
-        window: 窗口大小
-    
-    Returns:
-        滚动窗口内最小值的索引位置
-    """
-    return df.rolling(window=int(window)).apply(lambda x: x.argmin(), raw=True)
-
-
-def ts_rank(df: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
-    """
-    时间序列排名（Time series rank）
-    
-    Args:
-        df: 输入数据框
-        window: 窗口大小
-    
-    Returns:
-        滚动窗口内的排名
-    """
-    return df.rolling(window=int(window)).apply(lambda x: x.rank(pct=True).iloc[-1], raw=False)
-
-
-# ============================================================================
-# 统计函数（Statistical Functions）
-# ============================================================================
-
-def correlation(x: pd.DataFrame, y: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
-    """
-    时间序列相关性（Time series correlation）
-    
-    Args:
-        x: 第一个数据框
-        y: 第二个数据框
-        window: 窗口大小
-    
-    Returns:
-        滚动相关系数
-    """
-    return x.rolling(window=int(window)).corr(y)
-
-
-def covariance(x: pd.DataFrame, y: pd.DataFrame, window: Union[int, float]) -> pd.DataFrame:
-    """
-    时间序列协方差（Time series covariance）
-    
-    Args:
-        x: 第一个数据框
-        y: 第二个数据框
-        window: 窗口大小
-    
-    Returns:
-        滚动协方差
-    """
-    return x.rolling(window=int(window)).cov(y)
-
-
-def scale(df: pd.DataFrame, k: float = 1.0) -> pd.DataFrame:
-    """
-    缩放到总和为k（Scale to sum k）
-    
-    Args:
-        df: 输入数据框
-        k: 缩放目标总和
-    
-    Returns:
-        缩放后的数据框
-    """
-    return df.div(df.abs().sum(axis=1), axis=0) * k
-
-
-def decay_linear(df: pd.DataFrame, period: Union[int, float]) -> pd.DataFrame:
-    """
-    线性衰减加权移动平均（Linear decay weighted moving average）
-    
-    Args:
-        df: 输入数据框
-        period: 衰减周期
-    
-    Returns:
-        线性衰减加权后的数据框
-    """
-    period = int(period)
-    weights = np.arange(1, period + 1)
+    weights = np.arange(1, window + 1)
     weights = weights / weights.sum()
-    return df.rolling(window=period).apply(lambda x: (x * weights).sum(), raw=True)
+    
+    def weighted_mean(x):
+        if len(x) < window:
+            return np.nan
+        return np.sum(weights * x)
+    
+    return df.rolling(window=window).apply(weighted_mean, raw=True)
 
 
-def signed_power(df: pd.DataFrame, exp: Union[int, float]) -> pd.DataFrame:
+def scale(df: pd.DataFrame, constant: float = 1.0) -> pd.DataFrame:
     """
-    带符号的幂运算（Signed power）
+    缩放（scale）
+    对每一行进行缩放，使得绝对值之和等于constant
     
     Args:
-        df: 输入数据框
-        exp: 指数
+        df: 输入数据 DataFrame
+        constant: 缩放常数（默认1.0）
     
     Returns:
-        保留符号的幂运算结果
+        缩放后的 DataFrame
     """
-    return df.abs() ** exp * np.sign(df)
+    return df.div(df.abs().sum(axis=1), axis=0) * constant
 
 
-def indneutralize(df: pd.DataFrame, industry: pd.DataFrame) -> pd.DataFrame:
+def signed_power(df: pd.DataFrame, power: float) -> pd.DataFrame:
     """
-    行业中性化（Industry neutralize）
+    带符号的幂运算（SignedPower）
+    保持符号的幂运算
     
     Args:
-        df: 输入数据框
-        industry: 行业分类数据框
+        df: 输入数据 DataFrame
+        power: 幂次
     
     Returns:
-        行业中性化后的数据框
+        带符号的幂运算结果 DataFrame
     """
-    return df.sub(df.groupby(industry).transform('mean'))
-
-
-# ============================================================================
-# 基础指标函数（Basic Indicators）
-# ============================================================================
-
-def high_level(open_price: pd.DataFrame, close_price: pd.DataFrame) -> pd.DataFrame:
-    """
-    当日价格高开程度
-    
-    Args:
-        open_price: 开盘价数据框
-        close_price: 收盘价数据框
-    
-    Returns:
-        高开程度指标
-    """
-    return np.log(open_price / close_price.shift(1))
-
-
-def momentum_alpha(close_price: pd.DataFrame, open_price: pd.DataFrame, d: int) -> pd.DataFrame:
-    """
-    动量Alpha
-    
-    Args:
-        close_price: 收盘价数据框
-        open_price: 开盘价数据框
-        d: 天数
-    
-    Returns:
-        动量Alpha指标
-    """
-    return np.log(close_price.shift(-d) / open_price)
+    return np.sign(df) * (np.abs(df) ** power)
