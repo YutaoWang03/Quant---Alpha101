@@ -16,7 +16,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # 从 core 模块导入所有计算函数
-from alpha_helpers import rank, ts_argmax, signed_power, ts_min, ts_max, delta
+from alpha_helpers import rank, tsArgmax, signedPower, tsMin, tsMax, delta
 from alpha_factors import alpha001
 
 # 设置中文字体

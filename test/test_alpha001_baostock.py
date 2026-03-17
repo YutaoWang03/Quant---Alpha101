@@ -27,11 +27,11 @@ def rank(df):
     """横截面排名"""
     return df.rank(axis=1, pct=True)
 
-def ts_argmax(df, window):
+def tsArgmax(df, window):
     """时间序列最大值索引"""
     return df.rolling(window=int(window)).apply(lambda x: x.argmax(), raw=True)
 
-def signed_power(df, exp):
+def signedPower(df, exp):
     """带符号的幂运算"""
     return df.abs() ** exp * np.sign(df)
 
@@ -56,10 +56,10 @@ def alpha001(returns):
     power_input_df = pd.DataFrame(power_input, index=returns.index, columns=returns.columns)
     
     # 计算SignedPower(power_input, 2)
-    signed_power_result = signed_power(power_input_df, 2)
+    signed_power_result = signedPower(power_input_df, 2)
     
     # 计算Ts_ArgMax(..., 5)
-    ts_argmax_result = ts_argmax(signed_power_result, 5)
+    ts_argmax_result = tsArgmax(signed_power_result, 5)
     
     # 计算rank并减去0.5
     return rank(ts_argmax_result) - 0.5

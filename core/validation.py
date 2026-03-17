@@ -127,3 +127,33 @@ def validateShapeConsistency(
             for d, n in zip(data_list, name_list):
                 error_msg += f"  {n}: {d.shape}\n"
             raise ValueError(error_msg)
+
+
+def validate_dataframe_input(
+    data: pd.DataFrame,
+    param_name: str = "data"
+) -> None:
+    """
+    验证DataFrame输入数据的基本格式
+    
+    Args:
+        data: 待验证的数据框
+        param_name: 参数名称（用于错误提示）
+    
+    Raises:
+        TypeError: 数据类型不正确
+        ValueError: 数据格式不符合要求
+    """
+    # 检查是否为 DataFrame
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError(
+            f"{param_name} 必须是 pandas DataFrame，当前类型: {type(data)}"
+        )
+    
+    # 检查是否为空
+    if data.empty:
+        raise ValueError(f"{param_name} 为空数据框")
+    
+    # 检查是否包含数值数据
+    if not data.select_dtypes(include=[np.number]).shape[1]:
+        raise ValueError(f"{param_name} 必须包含数值数据")

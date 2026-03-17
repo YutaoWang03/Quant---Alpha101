@@ -87,3 +87,9 @@ temp/
 # OS
 .DS_Store
 Thumbs.db
+
+# docs
+docs/alpha101_notes
+
+# Local progress reports (不提交到GitHub)
+PROGRESS_REPORT.md
