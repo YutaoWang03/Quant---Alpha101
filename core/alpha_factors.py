@@ -283,7 +283,7 @@ def calculateAlpha005(
     References:
         - 101 Formulaic Alphas, Zura Kakushadze (2015)
     """
-    from alpha_helpers import delay, decay_linear, ts_argmax
+    from core.alpha_helpers import delay, decay_linear, ts_argmax
     
     validateDataFormat(open_price, "open_price", allow_nan=True)
     validateDataFormat(close_price, "close_price", allow_nan=True)
@@ -322,7 +322,7 @@ def calculateAlpha006(
     Returns:
         Alpha006 因子值 DataFrame
     """
-    from alpha_helpers import delta, ts_argmin
+    from core.alpha_helpers import delta, ts_argmin
     
     validateDataFormat(close_price, "close_price", allow_nan=True)
     
@@ -357,7 +357,7 @@ def calculateAlpha007(
     Returns:
         Alpha007 因子值 DataFrame
     """
-    from alpha_helpers import ts_argmax
+    from core.alpha_helpers import ts_argmax
     
     validateDataFormat(close_price, "close_price", allow_nan=True)
     validateDataFormat(volume, "volume", allow_nan=True)
@@ -777,44 +777,156 @@ def calculateAlpha020(
 # 由于代码量巨大，这里先创建占位函数，标注公式和TODO
 # 后续可以逐步实现
 
-def calculateAlpha021():
+def calculateAlpha021(
+    open_price: pd.DataFrame,
+    close_price: pd.DataFrame,
+    corr_window: int = 5) -> pd.DataFrame:
     """
     Alpha #21: (-1 * correlation(rank(open), rank(close), 5))
-    TODO: 实现此因子
+    
+    该因子通过开盘价与收盘价排名的负相关性来捕捉日内表现疲软信号。
+    
+    Args:
+        open_price: 开盘价 DataFrame
+        close_price: 收盘价 DataFrame
+        corr_window: 相关性窗口（默认：5）
+    
+    Returns:
+        Alpha021 因子值 DataFrame
     """
-    raise NotImplementedError("Alpha021 尚未实现")
+    validateDataFormat(open_price, "open_price", allow_nan=True)
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    
+    # 1. 横截面排名
+    ranked_open = open_price.rank(axis=1, pct=True)
+    ranked_close = close_price.rank(axis=1, pct=True)
+    
+    # 2. 计算滚动相关性并取负
+    alpha021 = -1 * ranked_open.rolling(window=corr_window).corr(ranked_close)
+    
+    return alpha021
 
 
-def calculateAlpha022():
+def calculateAlpha022(
+    open_price: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
     """
     Alpha #22: (rank(Ts_ArgMax(open, 10)) - 0.5)
-    TODO: 实现此因子
+    
+    该因子通过开盘价最大值位置来捕捉价格反转信号。
+    
+    Args:
+        open_price: 开盘价 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha022 因子值 DataFrame
     """
-    raise NotImplementedError("Alpha022 尚未实现")
+    from core.alpha_helpers import ts_argmax
+    
+    validateDataFormat(open_price, "open_price", allow_nan=True)
+    
+    # 1. 找到过去10天内最大值的位置
+    argmax_val = ts_argmax(open_price, window)
+    
+    # 2. 横截面排名并中心化
+    alpha022 = argmax_val.rank(axis=1, pct=True) - 0.5
+    
+    return alpha022
 
 
-def calculateAlpha023():
+def calculateAlpha023(
+    open_price: pd.DataFrame,
+    close_price: pd.DataFrame,
+    corr_window: int = 5,
+    ts_rank_window: int = 10) -> pd.DataFrame:
     """
     Alpha #23: (-1 * Ts_Rank(correlation(open, close, 5), 10))
-    TODO: 实现此因子
+    
+    该因子通过开盘价与收盘价相关性的时间序列排名来捕捉趋势反转。
+    
+    Args:
+        open_price: 开盘价 DataFrame
+        close_price: 收盘价 DataFrame
+        corr_window: 相关性窗口（默认：5）
+        ts_rank_window: 时间序列排名窗口（默认：10）
+    
+    Returns:
+        Alpha023 因子值 DataFrame
     """
-    raise NotImplementedError("Alpha023 尚未实现")
+    from core.alpha_helpers import ts_rank
+    
+    validateDataFormat(open_price, "open_price", allow_nan=True)
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    
+    # 1. 计算滚动相关性
+    correlation = open_price.rolling(window=corr_window).corr(close_price)
+    
+    # 2. 时间序列排名并取负
+    alpha023 = -1 * ts_rank(correlation, ts_rank_window)
+    
+    return alpha023
 
 
-def calculateAlpha024():
+def calculateAlpha024(
+    open_price: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
     """
     Alpha #24: rank(Ts_ArgMin(delta(open, 1), 10))
-    TODO: 实现此因子
+    
+    该因子通过开盘价变化的最小值位置来识别价格趋势变化。
+    
+    Args:
+        open_price: 开盘价 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha024 因子值 DataFrame
     """
-    raise NotImplementedError("Alpha024 尚未实现")
+    from core.alpha_helpers import delta, ts_argmin
+    
+    validateDataFormat(open_price, "open_price", allow_nan=True)
+    
+    # 1. 计算开盘价的日变化
+    open_delta = delta(open_price, 1)
+    
+    # 2. 找到过去10天内最小值的位置
+    argmin_val = ts_argmin(open_delta, window)
+    
+    # 3. 横截面排名
+    alpha024 = argmin_val.rank(axis=1, pct=True)
+    
+    return alpha024
 
 
-def calculateAlpha025():
+def calculateAlpha025(
+    high_price: pd.DataFrame,
+    low_price: pd.DataFrame,
+    corr_window: int = 5) -> pd.DataFrame:
     """
     Alpha #25: (-1 * correlation(rank(high), rank(low), 5))
-    TODO: 实现此因子
+    
+    该因子通过最高价与最低价排名的负相关性来捕捉波动性反转信号。
+    
+    Args:
+        high_price: 最高价 DataFrame
+        low_price: 最低价 DataFrame
+        corr_window: 相关性窗口（默认：5）
+    
+    Returns:
+        Alpha025 因子值 DataFrame
     """
-    raise NotImplementedError("Alpha025 尚未实现")
+    validateDataFormat(high_price, "high_price", allow_nan=True)
+    validateDataFormat(low_price, "low_price", allow_nan=True)
+    
+    # 1. 横截面排名
+    ranked_high = high_price.rank(axis=1, pct=True)
+    ranked_low = low_price.rank(axis=1, pct=True)
+    
+    # 2. 计算滚动相关性并取负
+    alpha025 = -1 * ranked_high.rolling(window=corr_window).corr(ranked_low)
+    
+    return alpha025
 
 
 # ... 继续为Alpha026-Alpha101创建占位函数
@@ -825,80 +937,484 @@ def calculateAlpha025():
     
 
 
-def calculateAlpha026():
-    """Alpha #26: (rank(Ts_ArgMax((high - low), 10)) - 0.5)
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha026 尚未实现")
+def calculateAlpha026(
+    high_price: pd.DataFrame,
+    low_price: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #26: (rank(Ts_ArgMax((high - low), 10)) - 0.5)
+    
+    该因子通过价格范围最大值位置来识别价格趋势变化。
+    
+    Args:
+        high_price: 最高价 DataFrame
+        low_price: 最低价 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha026 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_argmax
+    
+    validateDataFormat(high_price, "high_price", allow_nan=True)
+    validateDataFormat(low_price, "low_price", allow_nan=True)
+    
+    # 1. 计算价格范围
+    price_range = high_price - low_price
+    
+    # 2. 找到过去10天内最大值的位置
+    argmax_val = ts_argmax(price_range, window)
+    
+    # 3. 横截面排名并中心化
+    alpha026 = argmax_val.rank(axis=1, pct=True) - 0.5
+    
+    return alpha026
 
-def calculateAlpha027():
-    """Alpha #27: (-1 * Ts_Rank(correlation(high, low, 5), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha027 尚未实现")
+def calculateAlpha027(
+    high_price: pd.DataFrame,
+    low_price: pd.DataFrame,
+    corr_window: int = 5,
+    ts_rank_window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #27: (-1 * Ts_Rank(correlation(high, low, 5), 10))
+    
+    该因子通过最高价与最低价相关性的时间序列排名来捕捉趋势反转。
+    
+    Args:
+        high_price: 最高价 DataFrame
+        low_price: 最低价 DataFrame
+        corr_window: 相关性窗口（默认：5）
+        ts_rank_window: 时间序列排名窗口（默认：10）
+    
+    Returns:
+        Alpha027 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_rank
+    
+    validateDataFormat(high_price, "high_price", allow_nan=True)
+    validateDataFormat(low_price, "low_price", allow_nan=True)
+    
+    # 1. 计算滚动相关性
+    correlation = high_price.rolling(window=corr_window).corr(low_price)
+    
+    # 2. 时间序列排名并取负
+    alpha027 = -1 * ts_rank(correlation, ts_rank_window)
+    
+    return alpha027
 
-def calculateAlpha028():
-    """Alpha #28: rank(Ts_ArgMin(delta((high - low), 1), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha028 尚未实现")
+def calculateAlpha028(
+    high_price: pd.DataFrame,
+    low_price: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #28: rank(Ts_ArgMin(delta((high - low), 1), 10))
+    
+    该因子通过价格范围变化的最小值位置来识别价格趋势变化。
+    
+    Args:
+        high_price: 最高价 DataFrame
+        low_price: 最低价 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha028 因子值 DataFrame
+    """
+    from core.alpha_helpers import delta, ts_argmin
+    
+    validateDataFormat(high_price, "high_price", allow_nan=True)
+    validateDataFormat(low_price, "low_price", allow_nan=True)
+    
+    # 1. 计算价格范围
+    price_range = high_price - low_price
+    
+    # 2. 计算价格范围的日变化
+    range_delta = delta(price_range, 1)
+    
+    # 3. 找到过去10天内最小值的位置
+    argmin_val = ts_argmin(range_delta, window)
+    
+    # 4. 横截面排名
+    alpha028 = argmin_val.rank(axis=1, pct=True)
+    
+    return alpha028
 
-def calculateAlpha029():
-    """Alpha #29: (-1 * correlation(rank(returns), rank(volume), 5))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha029 尚未实现")
+def calculateAlpha029(
+    close_price: pd.DataFrame,
+    volume: pd.DataFrame,
+    corr_window: int = 5) -> pd.DataFrame:
+    """
+    Alpha #29: (-1 * correlation(rank(returns), rank(volume), 5))
+    
+    该因子通过收益率与成交量排名的负相关性来捕捉量价背离。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        volume: 成交量 DataFrame
+        corr_window: 相关性窗口（默认：5）
+    
+    Returns:
+        Alpha029 因子值 DataFrame
+    """
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    validateDataFormat(volume, "volume", allow_nan=True)
+    
+    # 1. 计算收益率
+    returns = close_price.pct_change()
+    
+    # 2. 横截面排名
+    ranked_returns = returns.rank(axis=1, pct=True)
+    ranked_volume = volume.rank(axis=1, pct=True)
+    
+    # 3. 计算滚动相关性并取负
+    alpha029 = -1 * ranked_returns.rolling(window=corr_window).corr(ranked_volume)
+    
+    return alpha029
 
-def calculateAlpha030():
-    """Alpha #30: (rank(Ts_ArgMax(returns, 10)) - 0.5)
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha030 尚未实现")
+def calculateAlpha030(
+    close_price: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #30: (rank(Ts_ArgMax(returns, 10)) - 0.5)
+    
+    该因子通过收益率最大值位置来捕捉价格反转信号。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha030 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_argmax
+    
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    
+    # 1. 计算收益率
+    returns = close_price.pct_change()
+    
+    # 2. 找到过去10天内最大值的位置
+    argmax_val = ts_argmax(returns, window)
+    
+    # 3. 横截面排名并中心化
+    alpha030 = argmax_val.rank(axis=1, pct=True) - 0.5
+    
+    return alpha030
 
-def calculateAlpha031():
-    """Alpha #31: (-1 * Ts_Rank(correlation(returns, volume, 5), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha031 尚未实现")
+def calculateAlpha031(
+    close_price: pd.DataFrame,
+    volume: pd.DataFrame,
+    corr_window: int = 5,
+    ts_rank_window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #31: (-1 * Ts_Rank(correlation(returns, volume, 5), 10))
+    
+    该因子通过收益率与成交量相关性的时间序列排名来捕捉趋势变化。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        volume: 成交量 DataFrame
+        corr_window: 相关性窗口（默认：5）
+        ts_rank_window: 时间序列排名窗口（默认：10）
+    
+    Returns:
+        Alpha031 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_rank
+    
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    validateDataFormat(volume, "volume", allow_nan=True)
+    
+    # 1. 计算收益率
+    returns = close_price.pct_change()
+    
+    # 2. 计算滚动相关性
+    correlation = returns.rolling(window=corr_window).corr(volume)
+    
+    # 3. 时间序列排名并取负
+    alpha031 = -1 * ts_rank(correlation, ts_rank_window)
+    
+    return alpha031
 
-def calculateAlpha032():
-    """Alpha #32: rank(Ts_ArgMin(delta(returns, 1), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha032 尚未实现")
+def calculateAlpha032(
+    close_price: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #32: rank(Ts_ArgMin(delta(returns, 1), 10))
+    
+    该因子通过收益率变化的最小值位置来识别价格趋势变化。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha032 因子值 DataFrame
+    """
+    from core.alpha_helpers import delta, ts_argmin
+    
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    
+    # 1. 计算收益率
+    returns = close_price.pct_change()
+    
+    # 2. 计算收益率的日变化
+    returns_delta = delta(returns, 1)
+    
+    # 3. 找到过去10天内最小值的位置
+    argmin_val = ts_argmin(returns_delta, window)
+    
+    # 4. 横截面排名
+    alpha032 = argmin_val.rank(axis=1, pct=True)
+    
+    return alpha032
 
-def calculateAlpha033():
-    """Alpha #33: (-1 * correlation(rank(vwap), rank(volume), 5))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha033 尚未实现")
+def calculateAlpha033(
+    vwap: pd.DataFrame,
+    volume: pd.DataFrame,
+    corr_window: int = 5) -> pd.DataFrame:
+    """
+    Alpha #33: (-1 * correlation(rank(vwap), rank(volume), 5))
+    
+    该因子通过VWAP与成交量排名的负相关性来捕捉量价背离。
+    
+    Args:
+        vwap: 成交量加权平均价格 DataFrame
+        volume: 成交量 DataFrame
+        corr_window: 相关性窗口（默认：5）
+    
+    Returns:
+        Alpha033 因子值 DataFrame
+    """
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    validateDataFormat(volume, "volume", allow_nan=True)
+    
+    # 1. 横截面排名
+    ranked_vwap = vwap.rank(axis=1, pct=True)
+    ranked_volume = volume.rank(axis=1, pct=True)
+    
+    # 2. 计算滚动相关性并取负
+    alpha033 = -1 * ranked_vwap.rolling(window=corr_window).corr(ranked_volume)
+    
+    return alpha033
 
-def calculateAlpha034():
-    """Alpha #34: (rank(Ts_ArgMax(vwap, 10)) - 0.5)
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha034 尚未实现")
+def calculateAlpha034(
+    vwap: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #34: (rank(Ts_ArgMax(vwap, 10)) - 0.5)
+    
+    该因子通过VWAP最大值位置来捕捉价格反转信号。
+    
+    Args:
+        vwap: 成交量加权平均价格 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha034 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_argmax
+    
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    
+    # 1. 找到过去10天内最大值的位置
+    argmax_val = ts_argmax(vwap, window)
+    
+    # 2. 横截面排名并中心化
+    alpha034 = argmax_val.rank(axis=1, pct=True) - 0.5
+    
+    return alpha034
 
-def calculateAlpha035():
-    """Alpha #35: (-1 * Ts_Rank(correlation(vwap, volume, 5), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha035 尚未实现")
+def calculateAlpha035(
+    vwap: pd.DataFrame,
+    volume: pd.DataFrame,
+    corr_window: int = 5,
+    ts_rank_window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #35: (-1 * Ts_Rank(correlation(vwap, volume, 5), 10))
+    
+    该因子通过VWAP与成交量相关性的时间序列排名来捕捉趋势反转。
+    
+    Args:
+        vwap: 成交量加权平均价格 DataFrame
+        volume: 成交量 DataFrame
+        corr_window: 相关性窗口（默认：5）
+        ts_rank_window: 时间序列排名窗口（默认：10）
+    
+    Returns:
+        Alpha035 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_rank
+    
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    validateDataFormat(volume, "volume", allow_nan=True)
+    
+    # 1. 计算滚动相关性
+    correlation = vwap.rolling(window=corr_window).corr(volume)
+    
+    # 2. 时间序列排名并取负
+    alpha035 = -1 * ts_rank(correlation, ts_rank_window)
+    
+    return alpha035
 
-def calculateAlpha036():
-    """Alpha #36: rank(Ts_ArgMin(delta(vwap, 1), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha036 尚未实现")
+def calculateAlpha036(
+    vwap: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #36: rank(Ts_ArgMin(delta(vwap, 1), 10))
+    
+    该因子通过VWAP变化的最小值位置来识别价格趋势变化。
+    
+    Args:
+        vwap: 成交量加权平均价格 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha036 因子值 DataFrame
+    """
+    from core.alpha_helpers import delta, ts_argmin
+    
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    
+    # 1. 计算VWAP的日变化
+    vwap_delta = delta(vwap, 1)
+    
+    # 2. 找到过去10天内最小值的位置
+    argmin_val = ts_argmin(vwap_delta, window)
+    
+    # 3. 横截面排名
+    alpha036 = argmin_val.rank(axis=1, pct=True)
+    
+    return alpha036
 
-def calculateAlpha037():
-    """Alpha #37: (-1 * correlation(rank(close), rank(vwap), 5))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha037 尚未实现")
+def calculateAlpha037(
+    close_price: pd.DataFrame,
+    vwap: pd.DataFrame,
+    corr_window: int = 5) -> pd.DataFrame:
+    """
+    Alpha #37: (-1 * correlation(rank(close), rank(vwap), 5))
+    
+    该因子通过收盘价与VWAP排名的负相关性来捕捉价格偏离。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        vwap: 成交量加权平均价格 DataFrame
+        corr_window: 相关性窗口（默认：5）
+    
+    Returns:
+        Alpha037 因子值 DataFrame
+    """
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    
+    # 1. 横截面排名
+    ranked_close = close_price.rank(axis=1, pct=True)
+    ranked_vwap = vwap.rank(axis=1, pct=True)
+    
+    # 2. 计算滚动相关性并取负
+    alpha037 = -1 * ranked_close.rolling(window=corr_window).corr(ranked_vwap)
+    
+    return alpha037
 
-def calculateAlpha038():
-    """Alpha #38: (rank(Ts_ArgMax((close - vwap), 10)) - 0.5)
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha038 尚未实现")
+def calculateAlpha038(
+    close_price: pd.DataFrame,
+    vwap: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #38: (rank(Ts_ArgMax((close - vwap), 10)) - 0.5)
+    
+    该因子通过收盘价与VWAP差值的最大值位置来捕捉价格偏离。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        vwap: 成交量加权平均价格 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha038 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_argmax
+    
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    
+    # 1. 计算收盘价与VWAP的差值
+    close_vwap_diff = close_price - vwap
+    
+    # 2. 找到过去10天内最大值的位置
+    argmax_val = ts_argmax(close_vwap_diff, window)
+    
+    # 3. 横截面排名并中心化
+    alpha038 = argmax_val.rank(axis=1, pct=True) - 0.5
+    
+    return alpha038
 
-def calculateAlpha039():
-    """Alpha #39: (-1 * Ts_Rank(correlation(close, vwap, 5), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha039 尚未实现")
+def calculateAlpha039(
+    close_price: pd.DataFrame,
+    vwap: pd.DataFrame,
+    corr_window: int = 5,
+    ts_rank_window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #39: (-1 * Ts_Rank(correlation(close, vwap, 5), 10))
+    
+    该因子通过收盘价与VWAP相关性的时间序列排名来捕捉趋势反转。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        vwap: 成交量加权平均价格 DataFrame
+        corr_window: 相关性窗口（默认：5）
+        ts_rank_window: 时间序列排名窗口（默认：10）
+    
+    Returns:
+        Alpha039 因子值 DataFrame
+    """
+    from core.alpha_helpers import ts_rank
+    
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    
+    # 1. 计算滚动相关性
+    correlation = close_price.rolling(window=corr_window).corr(vwap)
+    
+    # 2. 时间序列排名并取负
+    alpha039 = -1 * ts_rank(correlation, ts_rank_window)
+    
+    return alpha039
 
-def calculateAlpha040():
-    """Alpha #40: rank(Ts_ArgMin(delta((close - vwap), 1), 10))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha040 尚未实现")
+def calculateAlpha040(
+    close_price: pd.DataFrame,
+    vwap: pd.DataFrame,
+    window: int = 10) -> pd.DataFrame:
+    """
+    Alpha #40: rank(Ts_ArgMin(delta((close - vwap), 1), 10))
+    
+    该因子通过收盘价与VWAP差值变化的最小值位置来识别价格趋势变化。
+    
+    Args:
+        close_price: 收盘价 DataFrame
+        vwap: 成交量加权平均价格 DataFrame
+        window: 时间窗口（默认：10）
+    
+    Returns:
+        Alpha040 因子值 DataFrame
+    """
+    from core.alpha_helpers import delta, ts_argmin
+    
+    validateDataFormat(close_price, "close_price", allow_nan=True)
+    validateDataFormat(vwap, "vwap", allow_nan=True)
+    
+    # 1. 计算收盘价与VWAP的差值
+    close_vwap_diff = close_price - vwap
+    
+    # 2. 计算差值的日变化
+    diff_delta = delta(close_vwap_diff, 1)
+    
+    # 3. 找到过去10天内最小值的位置
+    argmin_val = ts_argmin(diff_delta, window)
+    
+    # 4. 横截面排名
+    alpha040 = argmin_val.rank(axis=1, pct=True)
+    
+    return alpha040
 
 def calculateAlpha041():
     """Alpha #41: (-1 * correlation(rank(high), rank(vwap), 5))
