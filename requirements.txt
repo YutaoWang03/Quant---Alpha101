@@ -14,6 +14,7 @@ seaborn>=0.12.0
 # 数据获取
 # Data Sources
 baostock>=0.8.8
+akshare>=1.12.0
 
 # 技术指标计算
 # Technical Analysis
