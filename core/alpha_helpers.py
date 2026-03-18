@@ -169,3 +169,17 @@ def signed_power(df: pd.DataFrame, power: float) -> pd.DataFrame:
         带符号的幂运算结果 DataFrame
     """
     return np.sign(df) * (np.abs(df) ** power)
+
+
+def ts_sum(df: pd.DataFrame, window: int) -> pd.DataFrame:
+    """
+    时间序列滚动求和（sum）
+    
+    Args:
+        df: 输入数据 DataFrame
+        window: 时间窗口
+    
+    Returns:
+        滚动求和 DataFrame
+    """
+    return df.rolling(window=window).sum()

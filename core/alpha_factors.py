@@ -14,7 +14,7 @@ Alpha101 quantitative factors implementation
 import pandas as pd
 import numpy as np
 from core.validation import validateDataFormat, validate_dataframe_input
-from core.alpha_helpers import decay_linear, scale
+from core.alpha_helpers import decay_linear, scale, ts_rank, delta, ts_min, ts_max, ts_argmax, ts_argmin, delay, ts_sum
 
 
 def calculateAlpha002(
@@ -2096,7 +2096,9 @@ def calculateAlpha059(vwap: pd.DataFrame, volume: pd.DataFrame) -> pd.DataFrame:
     validate_dataframe_input(volume, "volume")
     
     # 计算加权VWAP（这里公式中重复使用了VWAP，简化为VWAP本身）
-    weighted_vwap = vwap * 0.728317 + vwap * (1 - 0.728317)  # 实际上就是vwap
+    tau = 0.728317
+    # 实际上，这个公式简化后还是vwap
+    weighted_vwap = vwap * tau + vwap * (1 - tau)  # 实际上就是vwap
     
     # 计算加权VWAP与成交量的4天滚动相关性
     correlation_4d = pd.DataFrame(index=vwap.index, columns=vwap.columns)
@@ -2158,207 +2160,1932 @@ def calculateAlpha060(close_price: pd.DataFrame, high_price: pd.DataFrame, low_p
     
     return alpha060
 
-def calculateAlpha061():
-    """Alpha #61: 复杂公式，涉及adv180
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha061 尚未实现")
+def calculateAlpha061(vwap: pd.DataFrame, adv180: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #61: (rank((vwap - ts_min(vwap, 16.1219))) < rank(correlation(vwap, adv180, 17.9282)))
+    
+    该因子比较了两个排名：成交量加权平均价格减去过去16天内成交量加权平均价格最小值的排名，
+    以及成交量加权平均价格与180日平均每日交易量在过去18天内的相关性的排名。
+    
+    Args:
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        adv180: 180日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha061因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(adv180, "adv180")
+    
+    # 第一部分：rank((vwap - ts_min(vwap, 16)))
+    ts_min_vwap_16 = vwap.rolling(window=16).min()
+    part1 = (vwap - ts_min_vwap_16).rank(axis=1, pct=True)
+    
+    # 第二部分：rank(correlation(vwap, adv180, 18))
+    correlation_18d = pd.DataFrame(index=vwap.index, columns=vwap.columns)
+    
+    for col in vwap.columns:
+        if col in adv180.columns:
+            correlation_18d[col] = vwap[col].rolling(window=18).corr(adv180[col])
+    
+    part2 = correlation_18d.rank(axis=1, pct=True)
+    
+    # 比较两个排名
+    alpha061 = (part1 < part2).astype(int)
+    
+    return alpha061
 
-def calculateAlpha062():
-    """Alpha #62: 复杂公式，涉及adv20
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha062 尚未实现")
+def calculateAlpha062(vwap: pd.DataFrame, adv20: pd.DataFrame, open_price: pd.DataFrame, high_price: pd.DataFrame, low_price: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #62: ((rank(correlation(vwap, sum(adv20, 22.4101), 9.91009)) < rank(((rank(open) + rank(open)) < (rank(((high + low) / 2)) + rank(high))))) * -1)
+    
+    该因子比较了两个排名：成交量加权平均价格与20日平均每日交易量的22天滚动和在过去10天内的相关性的排名，
+    以及（开盘价排名加开盘价排名小于高低价平均值排名加最高价排名）这一条件的排名。
+    
+    Args:
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        adv20: 20日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        open_price: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        high_price: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_price: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha062因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(adv20, "adv20")
+    validate_dataframe_input(open_price, "open_price")
+    validate_dataframe_input(high_price, "high_price")
+    validate_dataframe_input(low_price, "low_price")
+    
+    # 第一部分：rank(correlation(vwap, sum(adv20, 22), 10))
+    sum_adv20_22 = adv20.rolling(window=22).sum()
+    correlation_10d = pd.DataFrame(index=vwap.index, columns=vwap.columns)
+    
+    for col in vwap.columns:
+        if col in sum_adv20_22.columns:
+            correlation_10d[col] = vwap[col].rolling(window=10).corr(sum_adv20_22[col])
+    
+    part1 = correlation_10d.rank(axis=1, pct=True)
+    
+    # 第二部分：rank(((rank(open) + rank(open)) < (rank(((high + low) / 2)) + rank(high))))
+    rank_open = open_price.rank(axis=1, pct=True)
+    rank_high = high_price.rank(axis=1, pct=True)
+    rank_mid = ((high_price + low_price) / 2).rank(axis=1, pct=True)
+    
+    condition = ((rank_open + rank_open) < (rank_mid + rank_high)).astype(int)
+    part2 = condition.rank(axis=1, pct=True)
+    
+    # 比较两个排名并取负值
+    alpha062 = ((part1 < part2).astype(int)) * -1
+    
+    return alpha062
 
-def calculateAlpha063():
-    """Alpha #63: 复杂公式，涉及行业中性化
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha063 尚未实现")
+def calculateAlpha063(close_price: pd.DataFrame, vwap: pd.DataFrame, open_price: pd.DataFrame, adv180: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #63: ((rank(decay_linear(delta(IndNeutralize(close, IndClass.industry), 2.25164), 8.22237)) - rank(decay_linear(correlation(((vwap * 0.318108) + (open * (1 - 0.318108))), sum(adv180, 37.2467), 13.557), 12.2883))) * -1)
+    
+    该因子计算了两个指标的差值并取负值。
+    注意：由于缺少行业分类数据，这里简化为不进行行业中性化处理。
+    
+    Args:
+        close_price: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        open_price: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        adv180: 180日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha063因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_price, "close_price")
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(open_price, "open_price")
+    validate_dataframe_input(adv180, "adv180")
+    
+    # 第一部分：rank(decay_linear(delta(close, 2), 8))
+    delta_close_2 = close_price.diff(2)
+    decay_linear_8 = decay_linear(delta_close_2, 8)
+    part1 = decay_linear_8.rank(axis=1, pct=True)
+    
+    # 第二部分：rank(decay_linear(correlation(((vwap * 0.318108) + (open * (1 - 0.318108))), sum(adv180, 37), 14), 12))
+    weighted_price = vwap * 0.318108 + open_price * (1 - 0.318108)
+    sum_adv180_37 = adv180.rolling(window=37).sum()
+    
+    correlation_14d = pd.DataFrame(index=close_price.index, columns=close_price.columns)
+    for col in close_price.columns:
+        if col in sum_adv180_37.columns:
+            correlation_14d[col] = weighted_price[col].rolling(window=14).corr(sum_adv180_37[col])
+    
+    decay_linear_12 = decay_linear(correlation_14d, 12)
+    part2 = decay_linear_12.rank(axis=1, pct=True)
+    
+    # 计算最终因子
+    alpha063 = (part1 - part2) * -1
+    
+    return alpha063
 
-def calculateAlpha064():
-    """Alpha #64: 复杂公式，涉及adv120
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha064 尚未实现")
+def calculateAlpha064(open_price: pd.DataFrame, low_price: pd.DataFrame, high_price: pd.DataFrame, vwap: pd.DataFrame, adv120: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #64: ((rank(correlation(sum(((open * 0.178404) + (low * (1 - 0.178404))), 12.7054), sum(adv120, 12.7054), 16.6208)) < rank(delta(((((high + low) / 2) * 0.178404) + (vwap * (1 - 0.178404))), 3.69741))) * -1)
+    
+    该因子比较了两个排名：开盘价和最低价的加权平均值的13天滚动和与120日平均每日交易量的13天滚动和在过去17天内的相关性的排名，
+    以及高低价平均值和成交量加权平均价格的加权平均值的4日变化的排名。
+    
+    Args:
+        open_price: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_price: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        high_price: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        adv120: 120日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha064因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(open_price, "open_price")
+    validate_dataframe_input(low_price, "low_price")
+    validate_dataframe_input(high_price, "high_price")
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(adv120, "adv120")
+    
+    # 第一部分：rank(correlation(sum(((open * 0.178404) + (low * (1 - 0.178404))), 13), sum(adv120, 13), 17))
+    weighted_price1 = open_price * 0.178404 + low_price * (1 - 0.178404)
+    sum_weighted_price_13 = weighted_price1.rolling(window=13).sum()
+    sum_adv120_13 = adv120.rolling(window=13).sum()
+    
+    correlation_17d = pd.DataFrame(index=open_price.index, columns=open_price.columns)
+    for col in open_price.columns:
+        if col in sum_adv120_13.columns:
+            correlation_17d[col] = sum_weighted_price_13[col].rolling(window=17).corr(sum_adv120_13[col])
+    
+    part1 = correlation_17d.rank(axis=1, pct=True)
+    
+    # 第二部分：rank(delta(((((high + low) / 2) * 0.178404) + (vwap * (1 - 0.178404))), 4))
+    weighted_price2 = ((high_price + low_price) / 2) * 0.178404 + vwap * (1 - 0.178404)
+    delta_4d = weighted_price2.diff(4)
+    part2 = delta_4d.rank(axis=1, pct=True)
+    
+    # 比较两个排名并取负值
+    alpha064 = ((part1 < part2).astype(int)) * -1
+    
+    return alpha064
 
-def calculateAlpha065():
-    """Alpha #65: 复杂公式，涉及adv60
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha065 尚未实现")
+def calculateAlpha065(open_price: pd.DataFrame, vwap: pd.DataFrame, adv60: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #65: ((rank(correlation(((open * 0.00817205) + (vwap * (1 - 0.00817205))), sum(adv60, 8.6911), 6.40374)) < rank((open - ts_min(open, 13.635)))) * -1)
+    
+    该因子比较了两个排名：开盘价和成交量加权平均价格的加权平均值与60日平均每日交易量的9天滚动和在过去6天内的相关性的排名，
+    以及开盘价减去过去14天内开盘价最小值的排名。
+    
+    Args:
+        open_price: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        adv60: 60日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha065因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(open_price, "open_price")
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(adv60, "adv60")
+    
+    # 第一部分：rank(correlation(((open * 0.00817205) + (vwap * (1 - 0.00817205))), sum(adv60, 9), 6))
+    weighted_price = open_price * 0.00817205 + vwap * (1 - 0.00817205)
+    sum_adv60_9 = adv60.rolling(window=9).sum()
+    
+    correlation_6d = pd.DataFrame(index=open_price.index, columns=open_price.columns)
+    for col in open_price.columns:
+        if col in sum_adv60_9.columns:
+            correlation_6d[col] = weighted_price[col].rolling(window=6).corr(sum_adv60_9[col])
+    
+    part1 = correlation_6d.rank(axis=1, pct=True)
+    
+    # 第二部分：rank((open - ts_min(open, 14)))
+    ts_min_open_14 = open_price.rolling(window=14).min()
+    part2 = (open_price - ts_min_open_14).rank(axis=1, pct=True)
+    
+    # 比较两个排名并取负值
+    alpha065 = ((part1 < part2).astype(int)) * -1
+    
+    return alpha065
 
-def calculateAlpha066():
-    """Alpha #66: 复杂公式，涉及decay_linear
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha066 尚未实现")
+def calculateAlpha066(vwap: pd.DataFrame, low_price: pd.DataFrame, open_price: pd.DataFrame, high_price: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #66: ((rank(decay_linear(delta(vwap, 3.51013), 7.23052)) + Ts_Rank(decay_linear(((((low * 0.96633) + (low * (1 - 0.96633))) - vwap) / (open - ((high + low) / 2)), 11.4157), 6.72611)) * -1)
+    
+    该因子计算了两个指标的和并取负值。
+    
+    Args:
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        low_price: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        open_price: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        high_price: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha066因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(low_price, "low_price")
+    validate_dataframe_input(open_price, "open_price")
+    validate_dataframe_input(high_price, "high_price")
+    
+    # 第一部分：rank(decay_linear(delta(vwap, 4), 7))
+    delta_vwap_4 = vwap.diff(4)
+    decay_linear_7 = decay_linear(delta_vwap_4, 7)
+    part1 = decay_linear_7.rank(axis=1, pct=True)
+    
+    # 第二部分：Ts_Rank(decay_linear(((low - vwap) / (open - ((high + low) / 2)), 11), 7)
+    numerator = low_price - vwap  # 简化公式中的重复low
+    denominator = open_price - ((high_price + low_price) / 2)
+    
+    # 避免除零
+    denominator = denominator.replace(0, np.nan)
+    ratio = numerator / denominator
+    
+    decay_linear_11 = decay_linear(ratio, 11)
+    part2 = ts_rank(decay_linear_11, 7)
+    
+    # 计算最终因子
+    alpha066 = (part1 + part2) * -1
+    
+    return alpha066
 
-def calculateAlpha067():
-    """Alpha #67: 复杂公式，涉及行业中性化
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha067 尚未实现")
+def calculateAlpha067(high_price: pd.DataFrame, vwap: pd.DataFrame, adv20: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #67: ((rank((high - ts_min(high, 2.14593)))^rank(correlation(IndNeutralize(vwap, IndClass.sector), IndNeutralize(adv20, IndClass.subindustry), 6.02936))) * -1)
+    
+    该因子计算了两个排名的幂次组合并取负值。
+    注意：由于缺少行业分类数据，这里简化为不进行行业中性化处理。
+    
+    Args:
+        high_price: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        adv20: 20日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha067因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(high_price, "high_price")
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(adv20, "adv20")
+    
+    # 第一部分：rank((high - ts_min(high, 2)))
+    ts_min_high_2 = high_price.rolling(window=2).min()
+    part1 = (high_price - ts_min_high_2).rank(axis=1, pct=True)
+    
+    # 第二部分：rank(correlation(vwap, adv20, 6)) (简化版，不进行行业中性化)
+    correlation_6d = pd.DataFrame(index=high_price.index, columns=high_price.columns)
+    for col in high_price.columns:
+        if col in adv20.columns:
+            correlation_6d[col] = vwap[col].rolling(window=6).corr(adv20[col])
+    
+    part2 = correlation_6d.rank(axis=1, pct=True)
+    
+    # 计算幂次组合并取负值
+    # 为避免数值问题，限制指数范围
+    part2_clipped = np.clip(part2, 0.01, 10)
+    alpha067 = (part1 ** part2_clipped) * -1
+    
+    return alpha067
 
-def calculateAlpha068():
-    """Alpha #68: 复杂公式，涉及adv15
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha068 尚未实现")
+def calculateAlpha068(high_price: pd.DataFrame, adv15: pd.DataFrame, close_price: pd.DataFrame, low_price: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #68: ((Ts_Rank(correlation(rank(high), rank(adv15), 8.91644), 13.9333) < rank(delta(((close * 0.518371) + (low * (1 - 0.518371))), 1.06157))) * -1)
+    
+    该因子比较了两个排名：最高价排名与15日平均每日交易量排名在过去9天内的相关性的14天时间序列排名，
+    以及收盘价和最低价的加权平均值的1日变化的排名。
+    
+    Args:
+        high_price: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        adv15: 15日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        close_price: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_price: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha068因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(high_price, "high_price")
+    validate_dataframe_input(adv15, "adv15")
+    validate_dataframe_input(close_price, "close_price")
+    validate_dataframe_input(low_price, "low_price")
+    
+    # 第一部分：Ts_Rank(correlation(rank(high), rank(adv15), 9), 14)
+    rank_high = high_price.rank(axis=1, pct=True)
+    rank_adv15 = adv15.rank(axis=1, pct=True)
+    
+    correlation_9d = pd.DataFrame(index=high_price.index, columns=high_price.columns)
+    for col in high_price.columns:
+        if col in rank_adv15.columns:
+            correlation_9d[col] = rank_high[col].rolling(window=9).corr(rank_adv15[col])
+    
+    part1 = ts_rank(correlation_9d, 14)
+    
+    # 第二部分：rank(delta(((close * 0.518371) + (low * (1 - 0.518371))), 1))
+    weighted_price = close_price * 0.518371 + low_price * (1 - 0.518371)
+    delta_1d = weighted_price.diff(1)
+    part2 = delta_1d.rank(axis=1, pct=True)
+    
+    # 比较两个排名并取负值
+    alpha068 = ((part1 < part2).astype(int)) * -1
+    
+    return alpha068
 
-def calculateAlpha069():
-    """Alpha #69: 复杂公式，涉及行业中性化
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha069 尚未实现")
+def calculateAlpha069(vwap: pd.DataFrame, close_price: pd.DataFrame, adv20: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #69: ((rank(ts_max(delta(IndNeutralize(vwap, IndClass.industry), 2.72412), 4.79344))^Ts_Rank(correlation(((close * 0.490655) + (vwap * (1 - 0.490655))), adv20, 4.92416), 9.0615)) * -1)
+    
+    该因子计算了两个排名的幂次组合并取负值。
+    注意：由于缺少行业分类数据，这里简化为不进行行业中性化处理。
+    
+    Args:
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        close_price: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        adv20: 20日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha069因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(close_price, "close_price")
+    validate_dataframe_input(adv20, "adv20")
+    
+    # 第一部分：rank(ts_max(delta(vwap, 3), 5)) (简化版)
+    delta_vwap_3 = vwap.diff(3)
+    ts_max_5 = delta_vwap_3.rolling(window=5).max()
+    part1 = ts_max_5.rank(axis=1, pct=True)
+    
+    # 第二部分：Ts_Rank(correlation(((close * 0.490655) + (vwap * (1 - 0.490655))), adv20, 5), 9)
+    weighted_price = close_price * 0.490655 + vwap * (1 - 0.490655)
+    
+    correlation_5d = pd.DataFrame(index=vwap.index, columns=vwap.columns)
+    for col in vwap.columns:
+        if col in adv20.columns:
+            correlation_5d[col] = weighted_price[col].rolling(window=5).corr(adv20[col])
+    
+    part2 = ts_rank(correlation_5d, 9)
+    
+    # 计算幂次组合并取负值
+    # 为避免数值问题，限制指数范围
+    part2_clipped = np.clip(part2, 0.01, 10)
+    alpha069 = (part1 ** part2_clipped) * -1
+    
+    return alpha069
 
-def calculateAlpha070():
-    """Alpha #70: 复杂公式，涉及行业中性化和adv50
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha070 尚未实现")
+def calculateAlpha070(vwap: pd.DataFrame, close_price: pd.DataFrame, adv50: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #70: ((rank(delta(vwap, 1.29456))^Ts_Rank(correlation(IndNeutralize(close, IndClass.industry), adv50, 17.8256), 17.9171)) * -1)
+    
+    该因子计算了两个排名的幂次组合并取负值。
+    注意：由于缺少行业分类数据，这里简化为不进行行业中性化处理。
+    
+    Args:
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        close_price: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        adv50: 50日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha070因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(close_price, "close_price")
+    validate_dataframe_input(adv50, "adv50")
+    
+    # 第一部分：rank(delta(vwap, 1))
+    delta_vwap_1 = vwap.diff(1)
+    part1 = delta_vwap_1.rank(axis=1, pct=True)
+    
+    # 第二部分：Ts_Rank(correlation(close, adv50, 18), 18) (简化版)
+    correlation_18d = pd.DataFrame(index=vwap.index, columns=vwap.columns)
+    for col in vwap.columns:
+        if col in adv50.columns:
+            correlation_18d[col] = close_price[col].rolling(window=18).corr(adv50[col])
+    
+    part2 = ts_rank(correlation_18d, 18)
+    
+    # 计算幂次组合并取负值
+    # 为避免数值问题，限制指数范围
+    part2_clipped = np.clip(part2, 0.01, 10)
+    alpha070 = (part1 ** part2_clipped) * -1
+    
+    return alpha070
 
-def calculateAlpha071():
-    """Alpha #71: 复杂公式，涉及max和decay_linear
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha071 尚未实现")
+def calculateAlpha071(close_price: pd.DataFrame, adv180: pd.DataFrame, low_price: pd.DataFrame, open_price: pd.DataFrame, vwap: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #71: max(Ts_Rank(decay_linear(correlation(Ts_Rank(close, 3.43976), Ts_Rank(adv180, 12.0647), 18.0175), 4.20501), 15.6948), Ts_Rank(decay_linear((rank(((low + open) - (vwap + vwap)))^2), 16.4662), 4.4388))
+    
+    该因子计算了两个时间序列排名的最大值。
+    
+    Args:
+        close_price: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        adv180: 180日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        low_price: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        open_price: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha071因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_price, "close_price")
+    validate_dataframe_input(adv180, "adv180")
+    validate_dataframe_input(low_price, "low_price")
+    validate_dataframe_input(open_price, "open_price")
+    validate_dataframe_input(vwap, "vwap")
+    
+    # 第一部分：Ts_Rank(decay_linear(correlation(Ts_Rank(close, 3), Ts_Rank(adv180, 12), 18), 4), 16)
+    ts_rank_close_3 = ts_rank(close_price, 3)
+    ts_rank_adv180_12 = ts_rank(adv180, 12)
+    
+    correlation_18d = pd.DataFrame(index=close_price.index, columns=close_price.columns)
+    for col in close_price.columns:
+        if col in ts_rank_adv180_12.columns:
+            correlation_18d[col] = ts_rank_close_3[col].rolling(window=18).corr(ts_rank_adv180_12[col])
+    
+    decay_linear_4 = decay_linear(correlation_18d, 4)
+    part1 = ts_rank(decay_linear_4, 16)
+    
+    # 第二部分：Ts_Rank(decay_linear((rank(((low + open) - (vwap + vwap)))^2), 16), 4)
+    price_diff = (low_price + open_price) - (vwap + vwap)
+    rank_diff = price_diff.rank(axis=1, pct=True)
+    rank_diff_squared = rank_diff ** 2
+    
+    decay_linear_16 = decay_linear(rank_diff_squared, 16)
+    part2 = ts_rank(decay_linear_16, 4)
+    
+    # 计算最大值
+    alpha071 = np.maximum(part1, part2)
+    
+    return alpha071
 
-def calculateAlpha072():
-    """Alpha #72: 复杂公式，涉及adv40
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha072 尚未实现")
+def calculateAlpha072(high_price: pd.DataFrame, low_price: pd.DataFrame, adv40: pd.DataFrame, vwap: pd.DataFrame, volume: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #72: (rank(decay_linear(correlation(((high + low) / 2), adv40, 8.93345), 10.1519)) / rank(decay_linear(correlation(Ts_Rank(vwap, 3.72469), Ts_Rank(volume, 18.5188), 6.86671), 2.95011)))
+    
+    该因子计算了两个指标的比值。
+    
+    Args:
+        high_price: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_price: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        adv40: 40日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        vwap: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha072因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(high_price, "high_price")
+    validate_dataframe_input(low_price, "low_price")
+    validate_dataframe_input(adv40, "adv40")
+    validate_dataframe_input(vwap, "vwap")
+    validate_dataframe_input(volume, "volume")
+    
+    # 分子：rank(decay_linear(correlation(((high + low) / 2), adv40, 9), 10))
+    mid_price = (high_price + low_price) / 2
+    correlation_9d = pd.DataFrame(index=high_price.index, columns=high_price.columns)
+    for col in high_price.columns:
+        if col in adv40.columns:
+            correlation_9d[col] = mid_price[col].rolling(window=9).corr(adv40[col])
+    
+    decay_linear_10 = decay_linear(correlation_9d, 10)
+    numerator = decay_linear_10.rank(axis=1, pct=True)
+    
+    # 分母：rank(decay_linear(correlation(Ts_Rank(vwap, 4), Ts_Rank(volume, 19), 7), 3))
+    ts_rank_vwap_4 = ts_rank(vwap, 4)
+    ts_rank_volume_19 = ts_rank(volume, 19)
+    
+    correlation_7d = pd.DataFrame(index=high_price.index, columns=high_price.columns)
+    for col in high_price.columns:
+        if col in ts_rank_volume_19.columns:
+            correlation_7d[col] = ts_rank_vwap_4[col].rolling(window=7).corr(ts_rank_volume_19[col])
+    
+    decay_linear_3 = decay_linear(correlation_7d, 3)
+    denominator = decay_linear_3.rank(axis=1, pct=True)
+    
+    # 避免除零
+    denominator = denominator.replace(0, np.nan)
+    alpha072 = numerator / denominator
+    return alpha072
 
-def calculateAlpha073():
-    """Alpha #73: 复杂公式，涉及max和decay_linear
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha073 尚未实现")
 
-def calculateAlpha074():
-    """Alpha #74: 复杂公式，涉及adv20
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha074 尚未实现")
+def calculateAlpha073(open_data: pd.DataFrame, low_data: pd.DataFrame, vwap_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #73: max(rank(decay_linear(delta(vwap, 4.72775), 2.91864)), 
+                      Ts_Rank(decay_linear(((delta(((open * 0.147155) + (low * (1 - 0.147155))), 2.03608) / 
+                                            ((open * 0.147155) + (low * (1 - 0.147155)))) * -1), 3.33829), 16.7411))
+    
+    该因子计算两个指标的最大值：
+    1. VWAP的5日变化的3天线性衰减加权移动平均的排名
+    2. 开盘价和最低价加权平均值的相对变化（负值）的3天衰减加权移动平均的17天时间序列排名
+    
+    Args:
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha073因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(open_data, "open_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    
+    # 参数（简化为整数）
+    vwap_delta_period = 5  # 4.72775 -> 5
+    vwap_decay_window = 3  # 2.91864 -> 3
+    
+    open_weight = 0.147155
+    price_delta_period = 2  # 2.03608 -> 2
+    price_decay_window = 3  # 3.33829 -> 3
+    ts_rank_window = 17  # 16.7411 -> 17
+    
+    # 第一个指标：rank(decay_linear(delta(vwap, 5), 3))
+    vwap_delta = vwap_data.diff(vwap_delta_period)
+    vwap_decay = decay_linear(vwap_delta, vwap_decay_window)
+    indicator1 = vwap_decay.rank(axis=1, pct=True)
+    
+    # 第二个指标：开盘价和最低价的加权平均
+    weighted_price = open_data * open_weight + low_data * (1 - open_weight)
+    
+    # 计算相对变化
+    price_delta = weighted_price.diff(price_delta_period)
+    relative_change = price_delta / weighted_price
+    relative_change_neg = relative_change * -1
+    
+    # 应用衰减和时间序列排名
+    price_decay = decay_linear(relative_change_neg, price_decay_window)
+    indicator2 = ts_rank(price_decay, ts_rank_window)
+    
+    # 计算最大值
+    alpha073 = np.maximum(indicator1, indicator2)
+    
+    return alpha073
 
-def calculateAlpha075():
-    """Alpha #75: 复杂公式，涉及行业中性化
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha075 尚未实现")
 
-def calculateAlpha076():
-    """Alpha #76: 复杂公式，涉及行业中性化
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha076 尚未实现")
+def calculateAlpha074(high_data: pd.DataFrame, low_data: pd.DataFrame, vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #74: rank(decay_linear(correlation(((high + low) / 2), adv20, 10.1519), 8.93345)) - 
+                  rank(decay_linear(correlation(Ts_Rank(vwap, 18.5188), Ts_Rank(volume, 3.72469), 2.95011), 6.86671))
+    
+    该因子计算两个指标的差值：
+    1. 高低价平均值与20日平均成交量相关性的9天衰减加权移动平均的排名
+    2. VWAP的19天时间序列排名与成交量的4天时间序列排名相关性的7天衰减加权移动平均的排名
+    
+    Args:
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha074因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(high_data, "high_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算20日平均成交量
+    adv20 = volume_data.rolling(window=20).mean()
+    
+    # 参数（简化为整数）
+    corr1_window = 10  # 10.1519 -> 10
+    decay1_window = 9  # 8.93345 -> 9
+    vwap_ts_rank_window = 19  # 18.5188 -> 19
+    volume_ts_rank_window = 4  # 3.72469 -> 4
+    corr2_window = 3  # 2.95011 -> 3
+    decay2_window = 7  # 6.86671 -> 7
+    
+    # 第一个指标：高低价平均值与adv20的相关性
+    mid_price = (high_data + low_data) / 2
+    corr1 = pd.DataFrame(index=mid_price.index, columns=mid_price.columns)
+    
+    for col in mid_price.columns:
+        if col in adv20.columns:
+            corr1[col] = mid_price[col].rolling(window=corr1_window).corr(adv20[col])
+    
+    decay1 = decay_linear(corr1, decay1_window)
+    indicator1 = decay1.rank(axis=1, pct=True)
+    
+    # 第二个指标：VWAP和成交量的时间序列排名相关性
+    vwap_ts_rank = ts_rank(vwap_data, vwap_ts_rank_window)
+    volume_ts_rank = ts_rank(volume_data, volume_ts_rank_window)
+    
+    corr2 = pd.DataFrame(index=vwap_ts_rank.index, columns=vwap_ts_rank.columns)
+    for col in vwap_ts_rank.columns:
+        if col in volume_ts_rank.columns:
+            corr2[col] = vwap_ts_rank[col].rolling(window=corr2_window).corr(volume_ts_rank[col])
+    
+    decay2 = decay_linear(corr2, decay2_window)
+    indicator2 = decay2.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha074 = indicator1 - indicator2
+    
+    return alpha074
 
-def calculateAlpha077():
-    """Alpha #77: 复杂公式，涉及adv15
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha077 尚未实现")
 
-def calculateAlpha078():
-    """Alpha #78: 复杂公式，涉及行业中性化和adv20
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha078 尚未实现")
+def calculateAlpha075(close_data: pd.DataFrame, high_data: pd.DataFrame, low_data: pd.DataFrame, 
+                     open_data: pd.DataFrame, vwap_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #75: rank(decay_linear(delta(IndNeutralize(close, IndClass.industry), 3.51013), 7.23052)) + 
+                  Ts_Rank(decay_linear(((vwap - (low * 0.96633 + low * (1 - 0.96633))) / 
+                                       ((high + low) / 2 - open)), 6.72611), 11.4157)
+    
+    该因子计算两个指标的和：
+    1. 行业中性化收盘价的4日变化的7天衰减加权移动平均的排名
+    2. 价格关系异常指标的7天衰减加权移动平均的11天时间序列排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha075因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(high_data, "high_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(open_data, "open_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    
+    # 参数（简化为整数）
+    close_delta_period = 4  # 3.51013 -> 4
+    close_decay_window = 7  # 7.23052 -> 7
+    price_decay_window = 7  # 6.72611 -> 7
+    ts_rank_window = 11  # 11.4157 -> 11
+    
+    # 第一个指标：行业中性化收盘价变化（简化为去均值）
+    close_neutralized = close_data.sub(close_data.mean(axis=1), axis=0)
+    close_delta = close_neutralized.diff(close_delta_period)
+    close_decay = decay_linear(close_delta, close_decay_window)
+    indicator1 = close_decay.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格关系异常
+    # 注意：公式中 low * 0.96633 + low * (1 - 0.96633) = low，所以简化为 low
+    weighted_low = low_data  # 简化后就是low本身
+    mid_price = (high_data + low_data) / 2
+    
+    price_anomaly = (vwap_data - weighted_low) / (mid_price - open_data)
+    price_anomaly = price_anomaly.replace([np.inf, -np.inf], np.nan)
+    
+    price_decay = decay_linear(price_anomaly, price_decay_window)
+    indicator2 = ts_rank(price_decay, ts_rank_window)
+    
+    # 计算和
+    alpha075 = indicator1 + indicator2
+    
+    return alpha075
 
-def calculateAlpha079():
-    """Alpha #79: 复杂公式，涉及行业中性化和adv50
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha079 尚未实现")
 
-def calculateAlpha080():
-    """Alpha #80: 复杂公式，涉及min和decay_linear
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha080 尚未实现")
+def calculateAlpha076(high_data: pd.DataFrame, vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #76: rank(correlation(IndNeutralize(vwap, IndClass.sector), 
+                                  IndNeutralize(adv20, IndClass.subindustry), 6.02936)) - 
+                  rank(high - ts_min(high, 2.14593))
+    
+    该因子计算两个排名的差值：
+    1. 行业中性化VWAP与子行业中性化20日平均成交量的6天相关性排名
+    2. 最高价减去过去2天最高价最小值的排名
+    
+    Args:
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha076因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(high_data, "high_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算20日平均成交量
+    adv20 = volume_data.rolling(window=20).mean()
+    
+    # 参数（简化为整数）
+    corr_window = 6  # 6.02936 -> 6
+    ts_min_window = 2  # 2.14593 -> 2
+    
+    # 第一个指标：行业中性化相关性（简化为去均值）
+    vwap_neutralized = vwap_data.sub(vwap_data.mean(axis=1), axis=0)
+    adv20_neutralized = adv20.sub(adv20.mean(axis=1), axis=0)
+    
+    corr = pd.DataFrame(index=vwap_neutralized.index, columns=vwap_neutralized.columns)
+    for col in vwap_neutralized.columns:
+        if col in adv20_neutralized.columns:
+            corr[col] = vwap_neutralized[col].rolling(window=corr_window).corr(adv20_neutralized[col])
+    
+    indicator1 = corr.rank(axis=1, pct=True)
+    
+    # 第二个指标：最高价相对近期低点
+    high_min = high_data.rolling(window=ts_min_window).min()
+    high_diff = high_data - high_min
+    indicator2 = high_diff.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha076 = indicator1 - indicator2
+    
+    return alpha076
 
-def calculateAlpha081():
-    """Alpha #81: 复杂公式，涉及adv40
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha081 尚未实现")
 
-def calculateAlpha082():
-    """Alpha #82: 复杂公式，涉及decay_linear
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha082 尚未实现")
+def calculateAlpha077(close_data: pd.DataFrame, low_data: pd.DataFrame, high_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #77: rank(delta(((close * 0.518371) + (low * (1 - 0.518371))), 1.06157)) - 
+                  Ts_Rank(correlation(rank(high), rank(adv15), 8.91644), 13.9333)
+    
+    该因子计算两个排名的差值：
+    1. 收盘价和最低价加权平均值的1日变化排名
+    2. 最高价排名与15日平均成交量排名的9天相关性的14天时间序列排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha077因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(high_data, "high_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算15日平均成交量
+    adv15 = volume_data.rolling(window=15).mean()
+    
+    # 参数（简化为整数）
+    close_weight = 0.518371
+    delta_period = 1  # 1.06157 -> 1
+    corr_window = 9  # 8.91644 -> 9
+    ts_rank_window = 14  # 13.9333 -> 14
+    
+    # 第一个指标：加权价格变化
+    weighted_price = close_data * close_weight + low_data * (1 - close_weight)
+    price_delta = weighted_price.diff(delta_period)
+    indicator1 = price_delta.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格排名与成交量排名的相关性
+    high_rank = high_data.rank(axis=1, pct=True)
+    adv15_rank = adv15.rank(axis=1, pct=True)
+    
+    corr = pd.DataFrame(index=high_rank.index, columns=high_rank.columns)
+    for col in high_rank.columns:
+        if col in adv15_rank.columns:
+            corr[col] = high_rank[col].rolling(window=corr_window).corr(adv15_rank[col])
+    
+    indicator2 = ts_rank(corr, ts_rank_window)
+    
+    # 计算差值
+    alpha077 = indicator1 - indicator2
+    
+    return alpha077
 
-def calculateAlpha083():
-    """Alpha #83: 复杂公式，涉及adv60
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha083 尚未实现")
 
-def calculateAlpha084():
-    """Alpha #84: 复杂公式，涉及adv120
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha084 尚未实现")
+def calculateAlpha078(close_data: pd.DataFrame, vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #78: Ts_Rank(correlation(((close * 0.490655) + (vwap * (1 - 0.490655))), adv20, 4.92416), 9.0615) - 
+                  rank(ts_max(delta(IndNeutralize(vwap, IndClass.industry), 2.72412), 4.79344))
+    
+    该因子计算两个排名的差值：
+    1. 收盘价和VWAP加权平均值与20日平均成交量的5天相关性的9天时间序列排名
+    2. 行业中性化VWAP的3日变化的5天时间序列最大值的排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha078因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算20日平均成交量
+    adv20 = volume_data.rolling(window=20).mean()
+    
+    # 参数（简化为整数）
+    close_weight = 0.490655
+    corr_window = 5  # 4.92416 -> 5
+    ts_rank_window = 9  # 9.0615 -> 9
+    vwap_delta_period = 3  # 2.72412 -> 3
+    ts_max_window = 5  # 4.79344 -> 5
+    
+    # 第一个指标：价格与成交量相关性的时间序列排名
+    weighted_price = close_data * close_weight + vwap_data * (1 - close_weight)
+    
+    corr = pd.DataFrame(index=weighted_price.index, columns=weighted_price.columns)
+    for col in weighted_price.columns:
+        if col in adv20.columns:
+            corr[col] = weighted_price[col].rolling(window=corr_window).corr(adv20[col])
+    
+    indicator1 = ts_rank(corr, ts_rank_window)
+    
+    # 第二个指标：行业中性化VWAP变化的极值（简化为去均值）
+    vwap_neutralized = vwap_data.sub(vwap_data.mean(axis=1), axis=0)
+    vwap_delta = vwap_neutralized.diff(vwap_delta_period)
+    vwap_max = vwap_delta.rolling(window=ts_max_window).max()
+    indicator2 = vwap_max.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha078 = indicator1 - indicator2
+    
+    return alpha078
 
-def calculateAlpha085():
-    """Alpha #85: 复杂公式，涉及行业中性化
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha085 尚未实现")
 
-def calculateAlpha086():
-    """Alpha #86: (rank(ts_argmax(close, 10)) - 2 * rank(((((close - low) - (high - close)) / (high - low)) * volume))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha086 尚未实现")
+def calculateAlpha079(close_data: pd.DataFrame, vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #79: Ts_Rank(correlation(IndNeutralize(close, IndClass.industry), adv50, 17.8256), 17.9171) - 
+                  rank(delta(vwap, 1.29456))
+    
+    该因子计算两个排名的差值：
+    1. 行业中性化收盘价与50日平均成交量的18天相关性的18天时间序列排名
+    2. VWAP的1日变化排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha079因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算50日平均成交量
+    adv50 = volume_data.rolling(window=50).mean()
+    
+    # 参数（简化为整数）
+    corr_window = 18  # 17.8256 -> 18
+    ts_rank_window = 18  # 17.9171 -> 18
+    vwap_delta_period = 1  # 1.29456 -> 1
+    
+    # 第一个指标：行业中性化收盘价与长期成交量相关性（简化为去均值）
+    close_neutralized = close_data.sub(close_data.mean(axis=1), axis=0)
+    
+    corr = pd.DataFrame(index=close_neutralized.index, columns=close_neutralized.columns)
+    for col in close_neutralized.columns:
+        if col in adv50.columns:
+            corr[col] = close_neutralized[col].rolling(window=corr_window).corr(adv50[col])
+    
+    indicator1 = ts_rank(corr, ts_rank_window)
+    
+    # 第二个指标：VWAP短期变化
+    vwap_delta = vwap_data.diff(vwap_delta_period)
+    indicator2 = vwap_delta.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha079 = indicator1 - indicator2
+    
+    return alpha079
 
-def calculateAlpha087():
-    """Alpha #87: 复杂公式，涉及returns
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha087 尚未实现")
 
-def calculateAlpha088():
-    """Alpha #88: (rank(volume) - rank(correlation(rank(((close - ts_min(low, 12)) / (ts_max(high, 12) - ts_min(low, 12)))), rank(volume), 6))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha088 尚未实现")
+def calculateAlpha080(close_data: pd.DataFrame, low_data: pd.DataFrame, open_data: pd.DataFrame, 
+                     vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #80: min(Ts_Rank(decay_linear(correlation(Ts_Rank(close, 12.0647), Ts_Rank(adv180, 3.43976), 4.20501), 18.0175), 15.6948), 
+                      Ts_Rank(decay_linear((rank(((low + open) - (vwap + vwap)))^2), 4.4388), 16.4662))
+    
+    该因子计算两个时间序列排名的最小值：
+    1. 收盘价和180日平均成交量时间序列排名相关性的衰减加权移动平均的时间序列排名
+    2. 价格关系异常平方的衰减加权移动平均的时间序列排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha080因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(open_data, "open_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算180日平均成交量
+    adv180 = volume_data.rolling(window=180).mean()
+    
+    # 参数（简化为整数）
+    close_ts_rank_window = 12  # 12.0647 -> 12
+    adv_ts_rank_window = 3  # 3.43976 -> 3
+    corr_window = 4  # 4.20501 -> 4
+    decay1_window = 18  # 18.0175 -> 18
+    ts_rank1_window = 16  # 15.6948 -> 16
+    decay2_window = 4  # 4.4388 -> 4
+    ts_rank2_window = 16  # 16.4662 -> 16
+    
+    # 第一个指标：价格-成交量时间序列排名相关性
+    close_ts_rank = ts_rank(close_data, close_ts_rank_window)
+    adv_ts_rank = ts_rank(adv180, adv_ts_rank_window)
+    
+    corr = pd.DataFrame(index=close_ts_rank.index, columns=close_ts_rank.columns)
+    for col in close_ts_rank.columns:
+        if col in adv_ts_rank.columns:
+            corr[col] = close_ts_rank[col].rolling(window=corr_window).corr(adv_ts_rank[col])
+    
+    decay1 = decay_linear(corr, decay1_window)
+    indicator1 = ts_rank(decay1, ts_rank1_window)
+    
+    # 第二个指标：价格关系异常
+    price_anomaly = (low_data + open_data) - (vwap_data + vwap_data)
+    price_anomaly_rank = price_anomaly.rank(axis=1, pct=True)
+    price_anomaly_squared = price_anomaly_rank ** 2
+    
+    decay2 = decay_linear(price_anomaly_squared, decay2_window)
+    indicator2 = ts_rank(decay2, ts_rank2_window)
+    
+    # 计算最小值
+    alpha080 = np.minimum(indicator1, indicator2)
+    
+    return alpha080
 
-def calculateAlpha089():
-    """Alpha #89: (rank((returns * cap)) - rank((sum(returns, 10) / sum(sum(returns, 2), 3)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha089 尚未实现")
 
-def calculateAlpha090():
-    """Alpha #90: (rank(ts_argmax(close, 30)) - rank((close - vwap) / decay_linear(rank(ts_argmax(close, 30)), 2)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha090 尚未实现")
+def calculateAlpha081(vwap_data: pd.DataFrame, volume_data: pd.DataFrame, high_data: pd.DataFrame, low_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #81: rank(decay_linear(correlation(Ts_Rank(vwap, 3.72469), Ts_Rank(volume, 18.5188), 6.86671), 2.95011)) / 
+                  rank(decay_linear(correlation(((high + low) / 2), adv40, 8.93345), 10.1519))
+    
+    该因子计算两个指标的比值：
+    1. VWAP的4天时间序列排名与成交量的19天时间序列排名的7天相关性的3天衰减加权移动平均的排名
+    2. 高低价平均值与40日平均成交量的9天相关性的10天衰减加权移动平均的排名
+    
+    Args:
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha081因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    validate_dataframe_input(high_data, "high_data")
+    validate_dataframe_input(low_data, "low_data")
+    
+    # 计算40日平均成交量
+    adv40 = volume_data.rolling(window=40).mean()
+    
+    # 参数（简化为整数）
+    vwap_ts_rank_window = 4  # 3.72469 -> 4
+    volume_ts_rank_window = 19  # 18.5188 -> 19
+    corr1_window = 7  # 6.86671 -> 7
+    decay1_window = 3  # 2.95011 -> 3
+    corr2_window = 9  # 8.93345 -> 9
+    decay2_window = 10  # 10.1519 -> 10
+    
+    # 分子：VWAP和成交量的时间序列排名相关性
+    vwap_ts_rank = ts_rank(vwap_data, vwap_ts_rank_window)
+    volume_ts_rank = ts_rank(volume_data, volume_ts_rank_window)
+    
+    corr1 = pd.DataFrame(index=vwap_ts_rank.index, columns=vwap_ts_rank.columns)
+    for col in vwap_ts_rank.columns:
+        if col in volume_ts_rank.columns:
+            corr1[col] = vwap_ts_rank[col].rolling(window=corr1_window).corr(volume_ts_rank[col])
+    
+    decay1 = decay_linear(corr1, decay1_window)
+    numerator = decay1.rank(axis=1, pct=True)
+    
+    # 分母：高低价平均值与adv40的相关性
+    mid_price = (high_data + low_data) / 2
+    corr2 = pd.DataFrame(index=mid_price.index, columns=mid_price.columns)
+    
+    for col in mid_price.columns:
+        if col in adv40.columns:
+            corr2[col] = mid_price[col].rolling(window=corr2_window).corr(adv40[col])
+    
+    decay2 = decay_linear(corr2, decay2_window)
+    denominator = decay2.rank(axis=1, pct=True)
+    
+    # 避免除零
+    denominator = denominator.replace(0, np.nan)
+    alpha081 = numerator / denominator
+    
+    return alpha081
 
-def calculateAlpha091():
-    """Alpha #91: (rank(adv180) - rank(correlation(rank(high), rank(adv15), 8.91644)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha091 尚未实现")
 
-def calculateAlpha092():
-    """Alpha #92: (rank(adv60) - rank(correlation(((open * 0.00817205) + (vwap * (1 - 0.00817205))), sum(adv60, 8.6911), 6.40374)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha092 尚未实现")
+def calculateAlpha082(vwap_data: pd.DataFrame, open_data: pd.DataFrame, low_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #82: rank(decay_linear(delta(vwap, 4.72775), 2.91864)) - 
+                  Ts_Rank(decay_linear(((delta(((open * 0.147155) + (low * (1 - 0.147155))), 2.03608) / 
+                                        ((open * 0.147155) + (low * (1 - 0.147155)))) * -1), 3.33829), 16.7411)
+    
+    该因子计算两个指标的差值：
+    1. VWAP的5日变化的3天衰减加权移动平均的排名
+    2. 开盘价和最低价加权平均值的相对变化（负值）的3天衰减加权移动平均的17天时间序列排名
+    
+    Args:
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha082因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(open_data, "open_data")
+    validate_dataframe_input(low_data, "low_data")
+    
+    # 参数（简化为整数）
+    vwap_delta_period = 5  # 4.72775 -> 5
+    vwap_decay_window = 3  # 2.91864 -> 3
+    
+    open_weight = 0.147155
+    price_delta_period = 2  # 2.03608 -> 2
+    price_decay_window = 3  # 3.33829 -> 3
+    ts_rank_window = 17  # 16.7411 -> 17
+    
+    # 第一个指标：rank(decay_linear(delta(vwap, 5), 3))
+    vwap_delta = vwap_data.diff(vwap_delta_period)
+    vwap_decay = decay_linear(vwap_delta, vwap_decay_window)
+    indicator1 = vwap_decay.rank(axis=1, pct=True)
+    
+    # 第二个指标：开盘价和最低价的加权平均
+    weighted_price = open_data * open_weight + low_data * (1 - open_weight)
+    
+    # 计算相对变化
+    price_delta = weighted_price.diff(price_delta_period)
+    relative_change = price_delta / weighted_price
+    relative_change_neg = relative_change * -1
+    
+    # 应用衰减和时间序列排名
+    price_decay = decay_linear(relative_change_neg, price_decay_window)
+    indicator2 = ts_rank(price_decay, ts_rank_window)
+    
+    # 计算差值
+    alpha082 = indicator1 - indicator2
+    
+    return alpha082
 
-def calculateAlpha093():
-    """Alpha #93: (rank(adv20) - rank(correlation(((close * 0.490655) + (vwap * (1 - 0.490655))), adv20, 4.92416)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha093 尚未实现")
 
-def calculateAlpha094():
-    """Alpha #94: (rank(adv50) - rank(correlation(IndNeutralize(close, IndClass.industry), adv50, 17.8256)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha094 尚未实现")
+def calculateAlpha083(open_data: pd.DataFrame, vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #83: rank(correlation(((open * 0.00817205) + (vwap * (1 - 0.00817205))), sum(adv60, 8.6911), 6.40374)) - 
+                  rank((open - ts_min(open, 13.635)))
+    
+    该因子计算两个排名的差值：
+    1. 开盘价和VWAP加权平均值与60日平均成交量的9天滚动和的6天相关性排名
+    2. 开盘价减去过去14天开盘价最小值的排名
+    
+    Args:
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha083因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(open_data, "open_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算60日平均成交量
+    adv60 = volume_data.rolling(window=60).mean()
+    
+    # 参数（简化为整数）
+    open_weight = 0.00817205
+    sum_window = 9  # 8.6911 -> 9
+    corr_window = 6  # 6.40374 -> 6
+    ts_min_window = 14  # 13.635 -> 14
+    
+    # 第一个指标：加权价格与成交量滚动和的相关性
+    weighted_price = open_data * open_weight + vwap_data * (1 - open_weight)
+    adv60_sum = ts_sum(adv60, sum_window)
+    
+    corr = pd.DataFrame(index=weighted_price.index, columns=weighted_price.columns)
+    for col in weighted_price.columns:
+        if col in adv60_sum.columns:
+            corr[col] = weighted_price[col].rolling(window=corr_window).corr(adv60_sum[col])
+    
+    indicator1 = corr.rank(axis=1, pct=True)
+    
+    # 第二个指标：开盘价相对近期低点
+    open_min = ts_min(open_data, ts_min_window)
+    open_diff = open_data - open_min
+    indicator2 = open_diff.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha083 = indicator1 - indicator2
+    
+    return alpha083
 
-def calculateAlpha095():
-    """Alpha #95: (rank(adv40) - rank(correlation(((high + low) / 2), adv40, 8.93345)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha095 尚未实现")
 
-def calculateAlpha096():
-    """Alpha #96: (rank(adv120) - rank(correlation(sum(((open * 0.178404) + (low * (1 - 0.178404))), 12.7054), sum(adv120, 12.7054), 16.6208)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha096 尚未实现")
+def calculateAlpha084(high_data: pd.DataFrame, low_data: pd.DataFrame, vwap_data: pd.DataFrame, 
+                     open_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #84: rank(delta(((((high + low) / 2) * 0.178404) + (vwap * (1 - 0.178404))), 3.69741)) - 
+                  rank(correlation(sum(((open * 0.178404) + (low * (1 - 0.178404))), 12.7054), 
+                                  sum(adv120, 12.7054), 16.6208))
+    
+    该因子计算两个排名的差值：
+    1. 高低价平均值和VWAP加权平均值的4日变化排名
+    2. 开盘价和最低价加权平均值的13天滚动和与120日平均成交量的13天滚动和的17天相关性排名
+    
+    Args:
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha084因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(high_data, "high_data", allow_nan=True)
+    validateDataFormat(low_data, "low_data", allow_nan=True)
+    validateDataFormat(vwap_data, "vwap_data", allow_nan=True)
+    validateDataFormat(open_data, "open_data", allow_nan=True)
+    validateDataFormat(volume_data, "volume_data", allow_nan=True)
+    
+    # 计算120日平均成交量
+    adv120 = volume_data.rolling(window=120).mean()
+    
+    # 参数（简化为整数）
+    weight = 0.178404
+    delta_period = 4  # 3.69741 -> 4
+    sum_window = 13  # 12.7054 -> 13
+    corr_window = 17  # 16.6208 -> 17
+    
+    # 第一个指标：加权价格变化
+    mid_price = (high_data + low_data) / 2
+    weighted_price1 = mid_price * weight + vwap_data * (1 - weight)
+    price_delta = weighted_price1.diff(delta_period)
+    indicator1 = price_delta.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格滚动和与成交量滚动和的相关性
+    weighted_price2 = open_data * weight + low_data * (1 - weight)
+    price_sum = ts_sum(weighted_price2, sum_window)
+    adv120_sum = ts_sum(adv120, sum_window)
+    
+    corr = pd.DataFrame(index=price_sum.index, columns=price_sum.columns)
+    for col in price_sum.columns:
+        if col in adv120_sum.columns:
+            corr[col] = price_sum[col].rolling(window=corr_window).corr(adv120_sum[col])
+    
+    indicator2 = corr.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha084 = indicator1 - indicator2
+    
+    return alpha084
 
-def calculateAlpha097():
-    """Alpha #97: (rank(volume) - rank(correlation(rank(close), rank(volume), 5)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha097 尚未实现")
 
-def calculateAlpha098():
-    """Alpha #98: (rank(volume) - rank(correlation(rank(high), rank(volume), 5)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha098 尚未实现")
+def calculateAlpha085(vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #85: rank(decay_linear(correlation(IndNeutralize(((vwap * 0.728317) + (vwap * (1 - 0.728317))), 
+                                                IndClass.industry), volume, 4.25197), 16.2289)) - 
+                  Ts_Rank(decay_linear(correlation(IndNeutralize(vwap, IndClass.sector), volume, 3.92795), 7.89291), 5.50322)
+    
+    该因子计算两个指标的差值：
+    1. 行业中性化VWAP与成交量的4天相关性的16天衰减加权移动平均的排名
+    2. 行业中性化VWAP与成交量的4天相关性的8天衰减加权移动平均的6天时间序列排名
+    
+    Args:
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha085因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(vwap_data, "vwap_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 参数（简化为整数）
+    # 注意：vwap * 0.728317 + vwap * (1 - 0.728317) = vwap，所以简化为vwap
+    corr1_window = 4  # 4.25197 -> 4
+    decay1_window = 16  # 16.2289 -> 16
+    corr2_window = 4  # 3.92795 -> 4
+    decay2_window = 8  # 7.89291 -> 8
+    ts_rank_window = 6  # 5.50322 -> 6
+    
+    # 第一个指标：行业中性化VWAP与成交量相关性（简化为去均值）
+    vwap_neutralized = vwap_data.sub(vwap_data.mean(axis=1), axis=0)
+    
+    corr1 = pd.DataFrame(index=vwap_neutralized.index, columns=vwap_neutralized.columns)
+    for col in vwap_neutralized.columns:
+        if col in volume_data.columns:
+            corr1[col] = vwap_neutralized[col].rolling(window=corr1_window).corr(volume_data[col])
+    
+    decay1 = decay_linear(corr1, decay1_window)
+    indicator1 = decay1.rank(axis=1, pct=True)
+    
+    # 第二个指标：同样的相关性但不同的衰减和时间序列排名
+    corr2 = pd.DataFrame(index=vwap_neutralized.index, columns=vwap_neutralized.columns)
+    for col in vwap_neutralized.columns:
+        if col in volume_data.columns:
+            corr2[col] = vwap_neutralized[col].rolling(window=corr2_window).corr(volume_data[col])
+    
+    decay2 = decay_linear(corr2, decay2_window)
+    indicator2 = ts_rank(decay2, ts_rank_window)
+    
+    # 计算差值
+    alpha085 = indicator1 - indicator2
+    
+    return alpha085
 
-def calculateAlpha099():
-    """Alpha #99: (rank(volume) - rank(correlation(rank(low), rank(volume), 5)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha099 尚未实现")
 
-def calculateAlpha100():
-    """Alpha #100: (rank(volume) - rank(correlation(rank(open), rank(volume), 10)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha100 尚未实现")
+def calculateAlpha086(close_data: pd.DataFrame, high_data: pd.DataFrame, low_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #86: rank(ts_argmax(close, 10)) - 2 * rank(((((close - low) - (high - close)) / (high - low)) * volume))
+    
+    该因子计算两个排名的差值：
+    1. 收盘价在过去10天内达到最大值的日期排名
+    2. 价格在当日价格范围内的位置乘以成交量的排名的2倍
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha086因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(high_data, "high_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 第一个指标：收盘价10天最大值索引
+    close_argmax = ts_argmax(close_data, 10)
+    indicator1 = close_argmax.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格位置乘以成交量
+    price_range = high_data - low_data
+    price_position = ((close_data - low_data) - (high_data - close_data)) / price_range
+    price_position = price_position.replace([np.inf, -np.inf], np.nan)
+    
+    position_volume = price_position * volume_data
+    indicator2 = position_volume.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha086 = indicator1 - 2 * indicator2
+    
+    return alpha086
 
-def calculateAlpha101():
-    """Alpha #101: (rank(volume) - rank(correlation(rank(vwap), rank(volume), 5)))
-    TODO: 实现此因子"""
-    raise NotImplementedError("Alpha101 尚未实现")
+
+def calculateAlpha087(close_data: pd.DataFrame, low_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #87: rank(((sum(returns, 240) - sum(returns, 20)) / 220)) - 
+                  rank(((-1 * ts_min(low, 5)) + delay(ts_min(low, 5), 5)) * ts_rank(volume, 5))
+    
+    该因子计算两个排名的差值：
+    1. 长期趋势（240天累计收益率减去20天累计收益率除以220）的排名
+    2. 短期价格反转潜力乘以成交量时间序列排名的排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha087因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 计算收益率
+    returns = close_data.pct_change()
+    
+    # 第一个指标：长期趋势
+    returns_240 = ts_sum(returns, 240)
+    returns_20 = ts_sum(returns, 20)
+    long_trend = (returns_240 - returns_20) / 220
+    indicator1 = long_trend.rank(axis=1, pct=True)
+    
+    # 第二个指标：短期价格反转潜力
+    low_min_5 = ts_min(low_data, 5)
+    low_min_5_delayed = delay(low_min_5, 5)
+    
+    reversal_potential = (-1 * low_min_5) + low_min_5_delayed
+    volume_ts_rank = ts_rank(volume_data, 5)
+    
+    reversal_volume = reversal_potential * volume_ts_rank
+    indicator2 = reversal_volume.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha087 = indicator1 - indicator2
+    
+    return alpha087
+
+
+def calculateAlpha088(close_data: pd.DataFrame, high_data: pd.DataFrame, low_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #88: rank(volume) - rank(correlation(rank(((close - ts_min(low, 12)) / (ts_max(high, 12) - ts_min(low, 12)))), 
+                                                  rank(volume), 6))
+    
+    该因子计算两个排名的差值：
+    1. 成交量的排名
+    2. 价格在过去12天价格范围内的位置排名与成交量排名的6天相关性排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha088因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(high_data, "high_data")
+    validate_dataframe_input(low_data, "low_data")
+    validate_dataframe_input(volume_data, "volume_data")
+    
+    # 第一个指标：成交量排名
+    indicator1 = volume_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格位置与成交量的相关性
+    low_min_12 = ts_min(low_data, 12)
+    high_max_12 = ts_max(high_data, 12)
+    
+    price_position = (close_data - low_min_12) / (high_max_12 - low_min_12)
+    price_position = price_position.replace([np.inf, -np.inf], np.nan)
+    
+    price_position_rank = price_position.rank(axis=1, pct=True)
+    volume_rank = volume_data.rank(axis=1, pct=True)
+    
+    corr = pd.DataFrame(index=price_position_rank.index, columns=price_position_rank.columns)
+    for col in price_position_rank.columns:
+        if col in volume_rank.columns:
+            corr[col] = price_position_rank[col].rolling(window=6).corr(volume_rank[col])
+    
+    indicator2 = corr.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha088 = indicator1 - indicator2
+    
+    return alpha088
+
+
+def calculateAlpha089(close_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #89: rank((returns * cap)) - rank((sum(returns, 10) / sum(sum(returns, 2), 3)))
+    
+    该因子计算两个排名的差值：
+    1. 当日收益率乘以市值的排名（简化为收益率排名，因为缺少市值数据）
+    2. 过去10天累计收益率除以过去3个2天累计收益率的和的排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha089因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    
+    # 计算收益率
+    returns = close_data.pct_change()
+    
+    # 第一个指标：收益率排名（简化，因为缺少市值数据）
+    indicator1 = returns.rank(axis=1, pct=True)
+    
+    # 第二个指标：收益率模式
+    returns_10 = ts_sum(returns, 10)
+    returns_2 = ts_sum(returns, 2)
+    returns_2_sum_3 = ts_sum(returns_2, 3)
+    
+    returns_pattern = returns_10 / returns_2_sum_3
+    returns_pattern = returns_pattern.replace([np.inf, -np.inf], np.nan)
+    indicator2 = returns_pattern.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha089 = indicator1 - indicator2
+    
+    return alpha089
+
+
+def calculateAlpha090(close_data: pd.DataFrame, vwap_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #90: rank(ts_argmax(close, 30)) - rank((close - vwap) / decay_linear(rank(ts_argmax(close, 30)), 2))
+    
+    该因子计算两个排名的差值：
+    1. 收盘价在过去30天内达到最大值的日期排名
+    2. 收盘价相对VWAP的偏离除以收盘价30天最大值索引排名的2天衰减加权移动平均的排名
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha090因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validate_dataframe_input(close_data, "close_data")
+    validate_dataframe_input(vwap_data, "vwap_data")
+    
+    # 第一个指标：收盘价30天最大值索引
+    close_argmax_30 = ts_argmax(close_data, 30)
+    indicator1 = close_argmax_30.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格偏离的标准化
+    price_deviation = close_data - vwap_data
+    
+    close_argmax_30_rank = close_argmax_30.rank(axis=1, pct=True)
+    decay_rank = decay_linear(close_argmax_30_rank, 2)
+    
+    normalized_deviation = price_deviation / decay_rank
+    normalized_deviation = normalized_deviation.replace([np.inf, -np.inf], np.nan)
+    indicator2 = normalized_deviation.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha090 = indicator1 - indicator2
+    
+    return alpha090
+
+
+def calculateAlpha091(high_data: pd.DataFrame, adv15_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #91: rank(adv180) - rank(correlation(rank(high), rank(adv15), 8.91644))
+    
+    该因子计算了两个排名的差值：
+    1. 180日平均每日交易量的排名
+    2. 最高价排名与15日平均每日交易量排名在过去9天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉长期平均交易量与价格排名-成交量关系之间的差异。
+    当长期平均交易量的排名高于价格排名-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        adv15_data: 15日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha091因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(high_data, "high_data", allow_nan=True)
+    validateDataFormat(adv15_data, "adv15_data", allow_nan=True)
+    
+    # 计算180日平均每日交易量（使用15日数据的滚动平均近似）
+    adv180 = adv15_data.rolling(window=12).mean()  # 近似180日平均
+    
+    # 第一个指标：180日平均每日交易量的排名
+    indicator1 = adv180.rank(axis=1, pct=True)
+    
+    # 第二个指标：最高价排名与15日平均每日交易量排名的9天相关性
+    ranked_high = high_data.rank(axis=1, pct=True)
+    ranked_adv15 = adv15_data.rank(axis=1, pct=True)
+    
+    correlation_9d = pd.DataFrame(index=high_data.index, columns=high_data.columns)
+    for col in high_data.columns:
+        if col in adv15_data.columns:
+            correlation_9d[col] = ranked_high[col].rolling(window=9).corr(ranked_adv15[col])
+    
+    indicator2 = correlation_9d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha091 = indicator1 - indicator2
+    
+    return alpha091
+
+
+def calculateAlpha092(open_data: pd.DataFrame, vwap_data: pd.DataFrame, adv60_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #92: rank(adv60) - rank(correlation(((open * 0.00817205) + (vwap * (1 - 0.00817205))), sum(adv60, 8.6911), 6.40374))
+    
+    该因子计算了两个排名的差值：
+    1. 60日平均每日交易量的排名
+    2. 开盘价和成交量加权平均价格的加权平均值与60日平均每日交易量的9天滚动和在过去6天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉60日平均每日交易量与价格-成交量关系之间的差异。
+    当60日平均每日交易量的排名高于价格-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        adv60_data: 60日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha092因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(open_data, "open_data", allow_nan=True)
+    validateDataFormat(vwap_data, "vwap_data", allow_nan=True)
+    validateDataFormat(adv60_data, "adv60_data", allow_nan=True)
+    
+    # 第一个指标：60日平均每日交易量的排名
+    indicator1 = adv60_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格-成交量关系
+    # 开盘价和VWAP的加权平均
+    weight = 0.00817205
+    weighted_price = open_data * weight + vwap_data * (1 - weight)
+    
+    # 60日平均每日交易量的9天滚动和
+    adv60_sum_9 = ts_sum(adv60_data, 9)
+    
+    # 计算6天相关性
+    correlation_6d = pd.DataFrame(index=open_data.index, columns=open_data.columns)
+    for col in open_data.columns:
+        if col in adv60_data.columns:
+            correlation_6d[col] = weighted_price[col].rolling(window=6).corr(adv60_sum_9[col])
+    
+    indicator2 = correlation_6d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha092 = indicator1 - indicator2
+    
+    return alpha092
+
+
+def calculateAlpha093(close_data: pd.DataFrame, vwap_data: pd.DataFrame, adv20_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #93: rank(adv20) - rank(correlation(((close * 0.490655) + (vwap * (1 - 0.490655))), adv20, 4.92416))
+    
+    该因子计算了两个排名的差值：
+    1. 20日平均每日交易量的排名
+    2. 收盘价和成交量加权平均价格的加权平均值与20日平均每日交易量在过去5天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉20日平均每日交易量与价格-成交量关系之间的差异。
+    当20日平均每日交易量的排名高于价格-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        adv20_data: 20日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha093因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(close_data, "close_data", allow_nan=True)
+    validateDataFormat(vwap_data, "vwap_data", allow_nan=True)
+    validateDataFormat(adv20_data, "adv20_data", allow_nan=True)
+    
+    # 第一个指标：20日平均每日交易量的排名
+    indicator1 = adv20_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格-成交量关系
+    # 收盘价和VWAP的加权平均
+    weight = 0.490655
+    weighted_price = close_data * weight + vwap_data * (1 - weight)
+    
+    # 计算5天相关性
+    correlation_5d = pd.DataFrame(index=close_data.index, columns=close_data.columns)
+    for col in close_data.columns:
+        if col in adv20_data.columns:
+            correlation_5d[col] = weighted_price[col].rolling(window=5).corr(adv20_data[col])
+    
+    indicator2 = correlation_5d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha093 = indicator1 - indicator2
+    
+    return alpha093
+
+
+def calculateAlpha094(close_data: pd.DataFrame, adv50_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #94: rank(adv50) - rank(correlation(IndNeutralize(close, IndClass.industry), adv50, 17.8256))
+    
+    该因子计算了两个排名的差值：
+    1. 50日平均每日交易量的排名
+    2. 行业中性化的收盘价与50日平均每日交易量在过去18天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉50日平均每日交易量与行业中性化的价格-成交量关系之间的差异。
+    当50日平均每日交易量的排名高于行业中性化的价格-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    注意：由于缺少行业分类数据，这里简化为不进行行业中性化处理。
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        adv50_data: 50日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha094因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(close_data, "close_data", allow_nan=True)
+    validateDataFormat(adv50_data, "adv50_data", allow_nan=True)
+    
+    # 第一个指标：50日平均每日交易量的排名
+    indicator1 = adv50_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：行业中性化的价格-成交量关系（简化为去均值）
+    close_neutralized = close_data.sub(close_data.mean(axis=1), axis=0)
+    
+    # 计算18天相关性
+    correlation_18d = pd.DataFrame(index=close_data.index, columns=close_data.columns)
+    for col in close_data.columns:
+        if col in adv50_data.columns:
+            correlation_18d[col] = close_neutralized[col].rolling(window=18).corr(adv50_data[col])
+    
+    indicator2 = correlation_18d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha094 = indicator1 - indicator2
+    
+    return alpha094
+
+
+def calculateAlpha095(high_data: pd.DataFrame, low_data: pd.DataFrame, adv40_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #95: rank(adv40) - rank(correlation(((high + low) / 2), adv40, 8.93345))
+    
+    该因子计算了两个排名的差值：
+    1. 40日平均每日交易量的排名
+    2. 高低价平均值与40日平均每日交易量在过去9天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉40日平均每日交易量与价格-成交量关系之间的差异。
+    当40日平均每日交易量的排名高于价格-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        adv40_data: 40日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha095因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(high_data, "high_data", allow_nan=True)
+    validateDataFormat(low_data, "low_data", allow_nan=True)
+    validateDataFormat(adv40_data, "adv40_data", allow_nan=True)
+    
+    # 第一个指标：40日平均每日交易量的排名
+    indicator1 = adv40_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：高低价平均值与成交量的相关性
+    mid_price = (high_data + low_data) / 2
+    
+    # 计算9天相关性
+    correlation_9d = pd.DataFrame(index=high_data.index, columns=high_data.columns)
+    for col in high_data.columns:
+        if col in adv40_data.columns:
+            correlation_9d[col] = mid_price[col].rolling(window=9).corr(adv40_data[col])
+    
+    indicator2 = correlation_9d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha095 = indicator1 - indicator2
+    
+    return alpha095
+
+
+def calculateAlpha096(open_data: pd.DataFrame, low_data: pd.DataFrame, adv120_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #96: rank(adv120) - rank(correlation(sum(((open * 0.178404) + (low * (1 - 0.178404))), 12.7054), sum(adv120, 12.7054), 16.6208))
+    
+    该因子计算了两个排名的差值：
+    1. 120日平均每日交易量的排名
+    2. 开盘价和最低价的加权平均值的13天滚动和与120日平均每日交易量的13天滚动和在过去17天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉120日平均每日交易量与价格滚动和与成交量滚动和的关系之间的差异。
+    当120日平均每日交易量的排名高于价格滚动和与成交量滚动和的关系排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        adv120_data: 120日平均每日交易量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha096因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(open_data, "open_data", allow_nan=True)
+    validateDataFormat(low_data, "low_data", allow_nan=True)
+    validateDataFormat(adv120_data, "adv120_data", allow_nan=True)
+    
+    # 第一个指标：120日平均每日交易量的排名
+    indicator1 = adv120_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：价格滚动和与成交量滚动和的相关性
+    # 开盘价和最低价的加权平均
+    weight = 0.178404
+    weighted_price = open_data * weight + low_data * (1 - weight)
+    
+    # 13天滚动和
+    price_sum_13 = ts_sum(weighted_price, 13)
+    adv120_sum_13 = ts_sum(adv120_data, 13)
+    
+    # 计算17天相关性
+    correlation_17d = pd.DataFrame(index=open_data.index, columns=open_data.columns)
+    for col in open_data.columns:
+        if col in adv120_data.columns:
+            correlation_17d[col] = price_sum_13[col].rolling(window=17).corr(adv120_sum_13[col])
+    
+    indicator2 = correlation_17d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha096 = indicator1 - indicator2
+    
+    return alpha096
+
+
+def calculateAlpha097(close_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #97: rank(volume) - rank(correlation(rank(close), rank(volume), 5))
+    
+    该因子计算了两个排名的差值：
+    1. 成交量的排名
+    2. 收盘价的排名与成交量的排名在过去5天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉成交量与价格-成交量关系之间的差异。
+    当成交量的排名高于价格-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        close_data: 收盘价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha097因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(close_data, "close_data", allow_nan=True)
+    validateDataFormat(volume_data, "volume_data", allow_nan=True)
+    
+    # 第一个指标：成交量的排名
+    indicator1 = volume_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：收盘价排名与成交量排名的5天相关性
+    ranked_close = close_data.rank(axis=1, pct=True)
+    ranked_volume = volume_data.rank(axis=1, pct=True)
+    
+    correlation_5d = pd.DataFrame(index=close_data.index, columns=close_data.columns)
+    for col in close_data.columns:
+        if col in volume_data.columns:
+            correlation_5d[col] = ranked_close[col].rolling(window=5).corr(ranked_volume[col])
+    
+    indicator2 = correlation_5d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha097 = indicator1 - indicator2
+    
+    return alpha097
+
+
+def calculateAlpha098(high_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #98: rank(volume) - rank(correlation(rank(high), rank(volume), 5))
+    
+    该因子计算了两个排名的差值：
+    1. 成交量的排名
+    2. 最高价的排名与成交量的排名在过去5天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉成交量与价格高点-成交量关系之间的差异。
+    当成交量的排名高于价格高点-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        high_data: 最高价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha098因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(high_data, "high_data", allow_nan=True)
+    validateDataFormat(volume_data, "volume_data", allow_nan=True)
+    
+    # 第一个指标：成交量的排名
+    indicator1 = volume_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：最高价排名与成交量排名的5天相关性
+    ranked_high = high_data.rank(axis=1, pct=True)
+    ranked_volume = volume_data.rank(axis=1, pct=True)
+    
+    correlation_5d = pd.DataFrame(index=high_data.index, columns=high_data.columns)
+    for col in high_data.columns:
+        if col in volume_data.columns:
+            correlation_5d[col] = ranked_high[col].rolling(window=5).corr(ranked_volume[col])
+    
+    indicator2 = correlation_5d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha098 = indicator1 - indicator2
+    
+    return alpha098
+
+
+def calculateAlpha099(low_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #99: rank(volume) - rank(correlation(rank(low), rank(volume), 5))
+    
+    该因子计算了两个排名的差值：
+    1. 成交量的排名
+    2. 最低价的排名与成交量的排名在过去5天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉成交量与价格低点-成交量关系之间的差异。
+    当成交量的排名高于价格低点-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        low_data: 最低价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha099因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(low_data, "low_data", allow_nan=True)
+    validateDataFormat(volume_data, "volume_data", allow_nan=True)
+    
+    # 第一个指标：成交量的排名
+    indicator1 = volume_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：最低价排名与成交量排名的5天相关性
+    ranked_low = low_data.rank(axis=1, pct=True)
+    ranked_volume = volume_data.rank(axis=1, pct=True)
+    
+    correlation_5d = pd.DataFrame(index=low_data.index, columns=low_data.columns)
+    for col in low_data.columns:
+        if col in volume_data.columns:
+            correlation_5d[col] = ranked_low[col].rolling(window=5).corr(ranked_volume[col])
+    
+    indicator2 = correlation_5d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha099 = indicator1 - indicator2
+    
+    return alpha099
+
+
+def calculateAlpha100(open_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #100: rank(volume) - rank(correlation(rank(open), rank(volume), 10))
+    
+    该因子计算了两个排名的差值：
+    1. 成交量的排名
+    2. 开盘价的排名与成交量的排名在过去10天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉成交量与开盘价-成交量关系之间的差异。
+    当成交量的排名高于开盘价-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        open_data: 开盘价数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha100因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(open_data, "open_data", allow_nan=True)
+    validateDataFormat(volume_data, "volume_data", allow_nan=True)
+    
+    # 第一个指标：成交量的排名
+    indicator1 = volume_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：开盘价排名与成交量排名的10天相关性
+    ranked_open = open_data.rank(axis=1, pct=True)
+    ranked_volume = volume_data.rank(axis=1, pct=True)
+    
+    correlation_10d = pd.DataFrame(index=open_data.index, columns=open_data.columns)
+    for col in open_data.columns:
+        if col in volume_data.columns:
+            correlation_10d[col] = ranked_open[col].rolling(window=10).corr(ranked_volume[col])
+    
+    indicator2 = correlation_10d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha100 = indicator1 - indicator2
+    
+    return alpha100
+
+
+def calculateAlpha101(vwap_data: pd.DataFrame, volume_data: pd.DataFrame) -> pd.DataFrame:
+    """Alpha #101: rank(volume) - rank(correlation(rank(vwap), rank(volume), 5))
+    
+    该因子计算了两个排名的差值：
+    1. 成交量的排名
+    2. 成交量加权平均价格的排名与成交量的排名在过去5天内的相关性的排名
+    
+    逻辑解读:
+    该因子试图捕捉成交量与成交量加权平均价格-成交量关系之间的差异。
+    当成交量的排名高于成交量加权平均价格-成交量关系的排名时，该因子值为正，可能预示着买入机会。
+    
+    Args:
+        vwap_data: 成交量加权平均价格数据，DataFrame格式，index为日期，columns为股票代码
+        volume_data: 成交量数据，DataFrame格式，index为日期，columns为股票代码
+        
+    Returns:
+        pd.DataFrame: Alpha101因子值，index为日期，columns为股票代码
+    """
+    # 数据验证
+    validateDataFormat(vwap_data, "vwap_data", allow_nan=True)
+    validateDataFormat(volume_data, "volume_data", allow_nan=True)
+    
+    # 第一个指标：成交量的排名
+    indicator1 = volume_data.rank(axis=1, pct=True)
+    
+    # 第二个指标：VWAP排名与成交量排名的5天相关性
+    ranked_vwap = vwap_data.rank(axis=1, pct=True)
+    ranked_volume = volume_data.rank(axis=1, pct=True)
+    
+    correlation_5d = pd.DataFrame(index=vwap_data.index, columns=vwap_data.columns)
+    for col in vwap_data.columns:
+        if col in volume_data.columns:
+            correlation_5d[col] = ranked_vwap[col].rolling(window=5).corr(ranked_volume[col])
+    
+    indicator2 = correlation_5d.rank(axis=1, pct=True)
+    
+    # 计算差值
+    alpha101 = indicator1 - indicator2
+    
+    return alpha101

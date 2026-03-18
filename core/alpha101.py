@@ -16,10 +16,7 @@ Actual implementation is split into:
 
 # 导入所有Alpha因子
 from .alpha_factors import (
-    alpha001, alpha002, alpha003, alpha004, alpha005,
-    alpha006, alpha007, alpha008, alpha009, alpha010,
-    alpha011, alpha012, alpha013, alpha014, alpha015,
-    alpha016
+    calculateAlpha002,
 )
 
 # 导出所有函数
