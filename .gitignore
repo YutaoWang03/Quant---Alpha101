@@ -93,3 +93,9 @@ docs/alpha101_notes
 
 # Local progress reports (不提交到GitHub)
 PROGRESS_REPORT.md
+
+# Task planning documents (不提交到GitHub)
+TASK_PLAN.md
+
+# env
+.env

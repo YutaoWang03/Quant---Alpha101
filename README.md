@@ -1,78 +1,137 @@
-# Quant - Alpha101
+# Alpha101 量化因子系统
 
 ## 项目简介
 
-本项目是一个完整的量化交易系统，实现了 Alpha 101 因子库，并提供从数据获取、因子计算、信号生成到回测评估的端到端解决方案。
+Alpha101 是一个完整的量化因子计算系统，实现了《101 Formulaic Alphas》论文中的全部101个Alpha因子。系统专注于高效、准确的因子计算，为量化投资研究提供强大的特征工程工具。
 
-### 🎯 项目进度
+## 版本信息
 
-**当前实现状态**: 59/101 Alpha因子已完成 (58.4%)
-
-- ✅ **Alpha002-040**: 39个因子 (基础价格、成交量因子)
-- ✅ **Alpha041-060**: 20个因子 (高级价格-成交量关系因子)
-- 🚧 **Alpha061-080**: 待实现 (复杂时间序列因子)
-- 🚧 **Alpha081-101**: 待实现 (行业中性化因子)
-
-**测试覆盖率**: 100% (所有已实现因子)
-
-### 核心理念
-
-**Alpha101 因子不是直接的交易信号，而是用于预测股票收益的特征变量。**
-
-系统通过以下流程工作：
-1. **数据层**: 获取和处理市场数据
-2. **计算层**: 计算 Alpha 因子作为特征
-3. **信号层**: 使用因子模型（机器学习/统计模型）预测收益并生成交易信号
-4. **回测层**: 模拟交易并评估策略表现
-5. **展示层**: 可视化结果和生成报告
+- **当前版本**: v1.0.1 (三层架构 - 已实现)
+- **规划版本**: v1.0.2 (五层架构 - 包含信号层和回测层)
 
 详细架构设计请参考 [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-## 项目架构
+### 🎯 项目状态
 
-### 🎯 新架构设计（规划中）
+**✅ v1.0.1 已完成**: 101/101 Alpha因子全部实现 (100%)
 
-基于因子模型的五层架构，详见 [ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- ✅ **Alpha002-021**: 20个基础因子 (价格、成交量基础指标)
+- ✅ **Alpha022-041**: 20个相关性因子 (价格-成交量相关性分析)
+- ✅ **Alpha042-061**: 20个复杂因子 (多指标组合分析)
+- ✅ **Alpha062-081**: 20个时间序列因子 (高级时间序列操作)
+- ✅ **Alpha082-101**: 20个统计因子 (复杂统计和排名分析)
+
+**🚀 v1.0.2 规划中**: 五层架构扩展
+- 🔄 **信号层**: 因子处理、信号生成、组合优化
+- 🔄 **回测层**: 策略回测、性能分析、报告生成
+
+**测试覆盖率**: 100% (所有因子都有完整的单元测试和集成测试)
+
+### 核心理念
+
+**Alpha因子是用于预测股票收益的特征变量，不是直接的交易信号。**
+
+系统的设计理念：
+- **特征工程**: 将原始市场数据转换为预测性特征
+- **模块化**: 每个组件职责单一，接口清晰
+- **可验证**: 每个因子都有完整的测试和验证
+- **高性能**: 优化的计算流程，支持大规模数据处理
+
+## v1.0.1 系统架构 (当前版本)
+
+### 三层架构设计
 
 ```
-数据层 → 计算层 → 信号层 → 回测层 → 展示层
-  ↓        ↓        ↓        ↓        ↓
-获取数据  计算因子  生成信号  模拟交易  可视化
+┌─────────────────────────────────────────────────────────────┐
+│                    测试验证层 (Test Layer)                   │
+│              单元测试、集成测试、性能验证                      │
+└─────────────────────────────────────────────────────────────┘
+                              ↑
+┌─────────────────────────────────────────────────────────────┐
+│                  核心计算层 (Computation Layer)              │
+│         Alpha因子计算、辅助函数、数据验证                      │
+└─────────────────────────────────────────────────────────────┘
+                              ↑
+┌─────────────────────────────────────────────────────────────┐
+│                   数据层 (Data Layer)                        │
+│            数据获取、数据库查询、数据接口                      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**核心改进**:
-- ✅ 因子作为特征，不直接作为交易信号
-- ✅ 引入因子模型层（机器学习/统计模型）
-- ✅ 完整的回测引擎和风险管理
-- ✅ 统一的数据接口和ETL流程
-- ✅ 模块化设计，易于扩展
+详细架构设计请参考 [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
-### 📁 当前目录结构
+## v1.0.2 发展路线图
+
+v1.0.2 将在现有三层架构基础上扩展为五层架构，形成完整的量化交易系统：
+
+### 🎯 新增功能
+
+**信号层 (Signal Layer)**
+- 因子标准化和合成
+- 多种信号生成策略
+- 组合优化和权重分配
+- 风险控制和仓位管理
+
+**回测层 (Backtest Layer)**
+- 策略执行引擎
+- 性能分析和归因
+- 风险指标计算
+- 可视化报告生成
+
+### 📅 开发计划
+
+- **阶段1**: 信号层开发 (4-6周)
+- **阶段2**: 回测层开发 (6-8周)  
+- **阶段3**: 集成测试 (2-3周)
+- **阶段4**: 部署维护 (持续)
+
+### 🔧 技术特性
+
+- 机器学习模型集成
+- 高级风险管理
+- 交互式可视化
+- 企业级部署支持
+
+## 项目结构
 
 ```
 Alpha101/
-├── core/                           # 核心计算代码
-│   ├── alpha_factors.py           # Alpha因子核心实现
-│   ├── alpha_helpers.py           # 辅助函数和工具
-│   ├── alpha101_functions.py      # Alpha101函数库
-│   ├── jq_alpha001_strategy.py    # 聚宽Alpha001策略
-│   └── jq_alpha1_strategy.py      # 聚宽Alpha1策略
-├── test/                          # 测试文件
-│   ├── alpha001_local_test.py     # Alpha001本地测试
-│   ├── quick_test_alpha001.py     # Alpha001快速测试
-│   └── test_alpha001_baostock.py  # Baostock数据测试
-├── docs/                          # 文档和学习资料
-│   ├── ARCHITECTURE.md            # 新架构设计文档 ⭐
-│   ├── Alpha 101 Learning.md      # Alpha因子详细说明
-│   ├── Alpha101 Learning.ipynb    # 代码实现文档
-│   ├── README_Alpha101.md         # Alpha101专项说明
-│   └── README_Testing.md          # 测试说明文档
-├── source/                        # 静态资源和数据
-│   ├── Alpha101.pdf              # 原始论文
-│   ├── notebook_cells_content.txt # Notebook内容
-│   └── pdf_b64_temp.txt          # 临时数据文件
+├── core/                          # 核心计算层
+│   ├── alpha_factors.py          # 101个Alpha因子实现 ⭐
+│   ├── alpha_helpers.py          # 辅助函数库
+│   ├── validation.py             # 数据验证模块
+│   ├── alpha101.py               # 主入口文件
+│   └── mertics.py                # 性能指标计算
+│
+├── data/                          # 数据层
+│   ├── data_api.py               # 统一数据接口
+│   ├── query_database.py         # 数据库查询
+│   ├── db/stock_data.db          # SQLite数据库
+│   └── USAGE.md                  # 数据使用说明
+│
+├── test/                          # 测试验证层
+│   ├── test_alpha005_020.py      # Alpha005-020测试
+│   ├── test_alpha021_040.py      # Alpha021-040测试
+│   ├── test_alpha041_060.py      # Alpha041-060测试
+│   ├── test_alpha061_080.py      # Alpha061-080测试
+│   ├── test_alpha081_101.py      # Alpha081-101测试
+│   ├── alpha001_local_test.py    # 完整集成测试
+│   └── test_data_format.py       # 数据格式测试
+│
+├── Configs/                       # 配置管理
+│   └── config.py                 # 系统配置
+│
+├── docs/                          # 文档
+│   ├── ARCHITECTURE.md           # 架构设计文档
+│   └── Alpha101 Learning.ipynb   # 学习笔记
+│
+├── examples/                      # 使用示例
+├── source/                        # 资源文件
+│   └── Alpha101.pdf              # 原始论文
+│
 ├── requirements.txt               # 项目依赖
-└── README.md                     # 项目主说明
+├── install_dependencies.sh       # 安装脚本
+└── README.md                     # 项目说明
 ```
 
 ### 🏗️ 分层架构设计
@@ -86,8 +145,8 @@ graph TB
     end
     
     subgraph "业务逻辑层 (Business Logic Layer)"
-        E[Alpha因子计算] --> F[Alpha001]
-        E --> G[Alpha002-101]
+        E[Alpha因子计算] --> F[Alpha002-101]
+        E --> G[完整因子库]
         H[策略实现] --> I[聚宽策略]
         H --> J[自定义策略]
     end
@@ -164,62 +223,62 @@ flowchart LR
 ```mermaid
 graph TD
     subgraph "核心模块 (core/)"
-        A[alpha_factors.py<br/>因子实现]
-        B[alpha_helpers.py<br/>辅助工具]
-        C[alpha101_functions.py<br/>函数库]
-        D[jq_alpha001_strategy.py<br/>聚宽策略1]
-        E[jq_alpha1_strategy.py<br/>聚宽策略2]
+        A[alpha_factors.py<br/>Alpha002-101因子实现]
+        B[alpha_helpers.py<br/>辅助函数库]
+        C[validation.py<br/>数据验证]
+        D[alpha101.py<br/>主入口]
+        E[mertics.py<br/>性能指标]
+    end
+    
+    subgraph "数据模块 (data/)"
+        F[data_api.py<br/>统一数据接口]
+        G[query_database.py<br/>数据库查询]
+        H[stock_data.db<br/>本地数据库]
     end
     
     subgraph "测试模块 (test/)"
-        F[alpha001_local_test.py<br/>本地测试]
-        G[quick_test_alpha001.py<br/>快速测试]
-        H[test_alpha001_baostock.py<br/>数据测试]
+        I[test_alpha005_020.py<br/>Alpha005-020测试]
+        J[test_alpha021_040.py<br/>Alpha021-040测试]
+        K[test_alpha041_060.py<br/>Alpha041-060测试]
+        L[test_alpha061_080.py<br/>Alpha061-080测试]
+        M[test_alpha081_101.py<br/>Alpha081-101测试]
+        N[alpha001_local_test.py<br/>集成测试]
     end
     
     subgraph "文档模块 (docs/)"
-        I[Alpha 101 Learning.md<br/>学习文档]
-        J[Alpha101 Learning.ipynb<br/>交互文档]
-        K[README_Alpha101.md<br/>技术说明]
-        L[README_Testing.md<br/>测试说明]
-    end
-    
-    subgraph "资源模块 (source/)"
-        M[Alpha101.pdf<br/>原始论文]
-        N[notebook_cells_content.txt<br/>代码内容]
-        O[pdf_b64_temp.txt<br/>临时数据]
+        O[ARCHITECTURE.md<br/>架构文档]
+        P[Alpha 101 Learning.md<br/>学习文档]
+        Q[Alpha101 Learning.ipynb<br/>交互文档]
     end
     
     %% 依赖关系
     A --> B
-    C --> A
-    C --> B
+    A --> C
     D --> A
     D --> B
-    E --> A
-    E --> B
     
-    F --> A
-    F --> B
-    G --> A
-    G --> B
-    H --> A
-    H --> B
+    F --> G
+    G --> H
     
+    I --> A
     J --> A
-    J --> B
-    J --> C
+    K --> A
+    L --> A
+    M --> A
+    N --> A
+    N --> F
     
     %% 样式
     classDef coreClass fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef testClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef docsClass fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
-    classDef sourceClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef dataClass fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef testClass fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef docsClass fill:#fff3e0,stroke:#e65100,stroke-width:2px
     
     class A,B,C,D,E coreClass
-    class F,G,H testClass
-    class I,J,K,L docsClass
-    class M,N,O sourceClass
+    class F,G,H dataClass
+    class I,J,K,L,M,N testClass
+    class O,P,Q docsClass
+```
 ```
 
 ### 🎯 架构设计理念
@@ -253,27 +312,36 @@ graph TD
 ## 核心模块说明
 
 ### core/ - 核心计算代码
-- **alpha_factors.py**: Alpha因子的核心实现，包含所有101个因子的计算逻辑
+- **alpha_factors.py**: Alpha因子的核心实现，包含Alpha002-101共100个因子的计算逻辑
 - **alpha_helpers.py**: 提供数据处理、技术指标计算等辅助函数
-- **alpha101_functions.py**: Alpha101因子库的完整函数实现
-- **jq_alpha001_strategy.py**: 基于聚宽平台的Alpha001策略实现
-- **jq_alpha1_strategy.py**: 基于聚宽平台的Alpha1策略实现
+- **validation.py**: 数据验证模块
+- **alpha101.py**: 向后兼容的主入口文件
+- **mertics.py**: 性能指标计算模块
 
 ### test/ - 测试模块
-- **alpha001_local_test.py**: Alpha001因子的本地测试脚本
-- **quick_test_alpha001.py**: Alpha001因子的快速验证测试
-- **test_alpha001_baostock.py**: 使用Baostock数据源的完整测试
+- **test_alpha005_020.py**: Alpha005-020因子测试套件
+- **test_alpha021_040.py**: Alpha021-040因子测试套件
+- **test_alpha041_060.py**: Alpha041-060因子测试套件
+- **test_alpha061_080.py**: Alpha061-080因子测试套件
+- **test_alpha081_101.py**: Alpha081-101因子测试套件
+- **alpha001_local_test.py**: 完整的集成测试脚本（使用Baostock数据）
+- **test_data_format.py**: 数据格式验证测试
 
 ### docs/ - 文档模块
-- **Alpha 101 Learning.md**: 所有101个Alpha因子的详细说明和逻辑解读
-- **Alpha101 Learning.ipynb**: 交互式代码实现和分析文档
-- **README_Alpha101.md**: Alpha101因子的专项技术说明
-- **README_Testing.md**: 测试框架和使用说明
+- **ARCHITECTURE.md**: 完整的系统架构设计文档
+- **Alpha 101 Learning.md**: Alpha因子的学习笔记和理论说明
+- **Alpha101 Learning.ipynb**: 交互式学习和分析文档
 
 ### source/ - 资源模块
 - **Alpha101.pdf**: 《101 Formulaic Alphas》原始论文
-- **notebook_cells_content.txt**: Jupyter Notebook单元格内容备份
-- **pdf_b64_temp.txt**: PDF文件的Base64编码临时文件
+
+### data/ - 数据层
+- **data_api.py**: 统一数据访问接口
+- **query_database.py**: SQLite数据库查询模块
+- **db/stock_data.db**: 本地股票数据存储
+
+### Configs/ - 配置管理
+- **config.py**: 系统配置参数
 
 ## 因子类型
 
@@ -325,7 +393,7 @@ sequenceDiagram
     T-->>U: 输出最终结果
 ```
 
-### 🔍 Alpha001因子详细计算
+### 🔍 Alpha002因子详细计算
 
 ```mermaid
 flowchart TD
@@ -371,26 +439,39 @@ pip install -r requirements.txt
 ### 2. 运行测试
 
 ```bash
-# 快速测试Alpha001因子
-python test/quick_test_alpha001.py
+# 运行Alpha因子测试套件
+python -m pytest test/test_alpha005_020.py -v
+python -m pytest test/test_alpha021_040.py -v
+python -m pytest test/test_alpha041_060.py -v
+python -m pytest test/test_alpha061_080.py -v
+python -m pytest test/test_alpha081_101.py -v
 
-# 完整测试（需要网络连接获取数据）
-python test/test_alpha001_baostock.py
-
-# 本地测试
+# 运行完整集成测试（需要网络连接）
 python test/alpha001_local_test.py
+
+# 运行数据格式测试
+python test/test_data_format.py
 ```
 
 ### 3. 使用核心模块
 
 ```python
-# 导入Alpha因子
-from core.alpha_factors import Alpha001
-from core.alpha_helpers import get_stock_data
+# 导入Alpha因子和数据接口
+from core.alpha_factors import calculateAlpha002  # 注意：Alpha001未实现，从Alpha002开始
+from data.data_api import DataAPI
+import pandas as pd
 
 # 获取数据并计算因子
-data = get_stock_data('000001.SZ', '2023-01-01', '2023-12-31')
-alpha001_value = Alpha001(data)
+with DataAPI() as api:
+    # 获取股票数据
+    data = api.get_stock_data('sh.000001', start_date='2023-01-01', end_date='2023-12-31')
+    
+    # 准备面板数据格式（Alpha因子需要面板数据）
+    close_panel = data.pivot(index='date', columns='code', values='close')
+    volume_panel = data.pivot(index='date', columns='code', values='volume')
+    
+    # 计算Alpha002因子
+    alpha002_value = calculateAlpha002(close_panel, volume_panel)
 ```
 
 ## 开发指南
@@ -399,53 +480,87 @@ alpha001_value = Alpha001(data)
 
 #### 第一层：用户接口层 (Presentation Layer)
 ```python
-# 测试脚本示例
-from test.quick_test_alpha001 import run_quick_test
-from test.test_alpha001_baostock import run_full_test
+# 导入Alpha因子计算函数
+from core.alpha_factors import calculateAlpha002, calculateAlpha003
+from data.data_api import DataAPI
 
-# 用户只需要调用简单的接口
-result = run_quick_test()
-detailed_result = run_full_test('000001.SZ', '2023-01-01', '2023-12-31')
+# 使用统一数据接口获取数据
+with DataAPI() as api:
+    # 获取多只股票的面板数据
+    codes = ['sh.000001', 'sh.000002', 'sz.000001']
+    close_panel = api.get_panel_data(codes, field='close')
+    volume_panel = api.get_panel_data(codes, field='volume')
+    
+    # 计算Alpha因子
+    alpha002 = calculateAlpha002(close_panel, volume_panel)
+    alpha003 = calculateAlpha003(close_panel, volume_panel)
 ```
 
 #### 第二层：业务逻辑层 (Business Logic Layer)
 ```python
 # Alpha因子计算核心
-from core.alpha_factors import Alpha001, Alpha002
-from core.alpha_helpers import calculate_returns, rank_transform
+from core.alpha_factors import calculateAlpha002, calculateAlpha003
+from core.alpha_helpers import ts_rank, decay_linear, scale
 
 # 因子计算的标准流程
-def calculate_alpha_factor(data, factor_class):
-    processed_data = preprocess_data(data)
-    factor_value = factor_class.calculate(processed_data)
-    return validate_result(factor_value)
+def calculate_alpha_factor(close_data, volume_data, factor_func):
+    """
+    标准的Alpha因子计算流程
+    
+    Args:
+        close_data: 收盘价面板数据
+        volume_data: 成交量面板数据  
+        factor_func: 因子计算函数
+    
+    Returns:
+        计算后的因子值
+    """
+    # 数据验证
+    if close_data.shape != volume_data.shape:
+        raise ValueError("数据维度不匹配")
+    
+    # 计算因子
+    factor_value = factor_func(close_data, volume_data)
+    
+    # 结果验证
+    if factor_value.isnull().all().all():
+        raise ValueError("因子计算结果全为空")
+    
+    return factor_value
 ```
 
 #### 第三层：数据访问层 (Data Access Layer)
 ```python
 # 统一的数据接口
-from core.alpha_helpers import DataProvider
+from data.data_api import DataAPI
 
-class DataProvider:
-    def get_stock_data(self, symbol, start_date, end_date, source='baostock'):
-        if source == 'baostock':
-            return self._fetch_baostock_data(symbol, start_date, end_date)
-        elif source == 'joinquant':
-            return self._fetch_joinquant_data(symbol, start_date, end_date)
-        else:
-            return self._load_local_data(symbol, start_date, end_date)
+# 使用统一数据接口
+with DataAPI() as api:
+    # 获取股票数据
+    data = api.get_stock_data('sh.000001', start_date='2023-01-01', end_date='2023-12-31')
+    
+    # 获取面板数据
+    codes = ['sh.000001', 'sh.000002']
+    close_panel = api.get_panel_data(codes, field='close')
+    volume_panel = api.get_panel_data(codes, field='volume')
+    
+    # 获取数据库统计信息
+    stats = api.get_statistics()
 ```
 
 #### 第四层：基础设施层 (Infrastructure Layer)
 ```python
 # 基础工具和配置
 from core.alpha_helpers import (
-    moving_average, 
-    correlation, 
-    rank, 
+    ts_rank,
+    ts_sum, 
+    ts_min,
+    ts_max,
+    delta,
     delay,
-    ts_sum,
-    ts_rank
+    decay_linear,
+    scale,
+    signed_power
 )
 
 # 所有Alpha因子都依赖这些基础函数
@@ -456,40 +571,79 @@ from core.alpha_helpers import (
 #### 1. 在 `core/alpha_factors.py` 中实现因子计算逻辑
 
 ```python
-class Alpha002:
+def calculateAlpha102(close_price: pd.DataFrame, volume: pd.DataFrame) -> pd.DataFrame:
     """
-    Alpha002: (-1 * correlation(rank(delta(log(volume), 2)), rank(((close - open) / open)), 6))
-    """
+    Alpha102: 新的Alpha因子实现
     
-    @staticmethod
-    def calculate(data):
-        # 实现具体的计算逻辑
-        volume_delta = delta(log(data['volume']), 2)
-        price_change = (data['close'] - data['open']) / data['open']
-        
-        volume_rank = rank(volume_delta)
-        price_rank = rank(price_change)
-        
-        correlation_result = correlation(volume_rank, price_rank, 6)
-        return -1 * correlation_result
+    公式: 示例公式描述
+    
+    逻辑说明:
+    1. 计算价格变化率
+    2. 计算成交量变化率  
+    3. 应用时间序列操作
+    4. 返回因子值
+    
+    Args:
+        close_price: 收盘价面板数据 (DataFrame)
+        volume: 成交量面板数据 (DataFrame)
+    
+    Returns:
+        Alpha102因子值 (DataFrame)
+    """
+    # 数据验证
+    validateDataFormat(close_price, "close_price")
+    validateDataFormat(volume, "volume")
+    
+    # 因子计算逻辑
+    price_change = close_price.pct_change()
+    volume_change = volume.pct_change()
+    
+    # 应用时间序列操作
+    result = ts_rank(price_change, 10) * ts_rank(volume_change, 10)
+    
+    return result
 ```
 
 #### 2. 在 `test/` 目录下添加对应的测试文件
 
 ```python
-# test/test_alpha002.py
+# test/test_alpha102.py
 import unittest
-from core.alpha_factors import Alpha002
-from core.alpha_helpers import generate_test_data
+import pandas as pd
+import numpy as np
+from core.alpha_factors import calculateAlpha102
 
-class TestAlpha002(unittest.TestCase):
+class TestAlpha102(unittest.TestCase):
     def setUp(self):
-        self.test_data = generate_test_data()
+        """设置测试数据"""
+        dates = pd.date_range('2023-01-01', periods=100, freq='D')
+        stocks = ['stock1', 'stock2', 'stock3']
+        
+        # 生成模拟数据
+        np.random.seed(42)
+        self.close_data = pd.DataFrame(
+            np.random.randn(100, 3).cumsum(axis=0) + 100,
+            index=dates, columns=stocks
+        )
+        self.volume_data = pd.DataFrame(
+            np.random.randint(1000, 10000, (100, 3)),
+            index=dates, columns=stocks
+        )
     
-    def test_alpha002_calculation(self):
-        result = Alpha002.calculate(self.test_data)
-        self.assertIsNotNone(result)
-        self.assertTrue(len(result) > 0)
+    def test_alpha102_calculation(self):
+        """测试Alpha102因子计算"""
+        result = calculateAlpha102(self.close_data, self.volume_data)
+        
+        # 检查输出格式
+        self.assertIsInstance(result, pd.DataFrame)
+        self.assertEqual(result.shape, self.close_data.shape)
+        
+        # 检查数值有效性
+        self.assertFalse(result.isnull().all().all())
+        print("✓ Alpha102 测试通过")
+
+if __name__ == '__main__':
+    unittest.main()
 ```
 
 #### 3. 更新 `docs/` 中的相关文档
@@ -509,17 +663,21 @@ pyramid
 
 - **单元测试 (80%)**: 测试单个因子的计算逻辑
   ```bash
-  python -m pytest test/test_alpha001.py -v
+  # 测试特定Alpha因子组
+  python -m pytest test/test_alpha005_020.py::TestAlpha005_020::test_alpha005 -v
+  python -m pytest test/test_alpha081_101.py::TestAlpha081_101::test_alpha081 -v
   ```
 
 - **集成测试 (15%)**: 测试数据获取和因子计算的完整流程
   ```bash
-  python test/test_alpha001_baostock.py
+  # 完整的端到端测试
+  python test/alpha001_local_test.py
   ```
 
-- **端到端测试 (5%)**: 测试完整的用户场景
+- **数据验证测试 (5%)**: 测试数据格式和接口
   ```bash
-  python test/quick_test_alpha001.py
+  # 数据格式验证测试
+  python test/test_data_format.py
   ```
 
 ### 数据源支持
@@ -558,25 +716,36 @@ classDiagram
     DataSource <|-- LocalDataAdapter
 ```
 
-- **Baostock**: 免费的A股历史数据
+- **本地数据库**: 使用SQLite存储的历史数据
   ```python
-  from core.alpha_helpers import BaostockDataProvider
-  provider = BaostockDataProvider()
-  data = provider.get_stock_data('000001.SZ', '2023-01-01', '2023-12-31')
+  from data.data_api import DataAPI
+  
+  with DataAPI() as api:
+      # 获取单只股票数据
+      data = api.get_stock_data('sh.000001', start_date='2023-01-01', end_date='2023-12-31')
+      
+      # 获取面板数据
+      codes = ['sh.000001', 'sh.000002']
+      close_panel = api.get_panel_data(codes, field='close')
   ```
 
-- **聚宽(JoinQuant)**: 专业量化平台数据接口
+- **Baostock**: 免费的A股历史数据（通过测试脚本使用）
   ```python
-  from core.alpha_helpers import JoinQuantDataProvider
-  provider = JoinQuantDataProvider(api_key='your_api_key')
-  data = provider.get_stock_data('000001.XSHE', '2023-01-01', '2023-12-31')
+  # 参考 test/alpha001_local_test.py 中的实现
+  from test.alpha001_local_test import BaostockDataLoader
+  
+  loader = BaostockDataLoader()
+  stock_list = loader.get_stock_list('sh.000300')
+  close_df, volume_df = loader.get_panel_data(stock_list, '2023-01-01', '2023-12-31')
   ```
 
-- **自定义数据源**: 支持CSV、Excel等格式的本地数据
+- **自定义数据源**: 支持扩展新的数据源适配器
   ```python
-  from core.alpha_helpers import LocalDataProvider
-  provider = LocalDataProvider()
-  data = provider.load_from_csv('data/stock_data.csv')
+  # 在 data/ 目录下实现新的数据源适配器
+  class CustomDataAdapter:
+      def get_stock_data(self, code, start_date, end_date):
+          # 实现自定义数据获取逻辑
+          return formatted_dataframe
   ```
 
 ## 性能优化
